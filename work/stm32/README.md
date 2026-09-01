@@ -23,15 +23,15 @@
 - **Data / Parity / Stop:** `8-N-1`
 - **Packet Delimiter:** `\\n`  또는 `\\r\\n`
 
-| 전송 패킷 (ASCII) | 기능 정의 | STM32F4 액추에이터 처리 동작 |
-| :--- | :--- | :--- |
-| `DROWSY_WARN` | 졸음 경고 발생 | 경고 부저 지속 패턴 출력 (`BUZZER_STATE_ALERT`) |
-| `DROWSY_OK` | 졸음 상태 해제 | 경고 부저 즉시 Off (`BUZZER_STATE_IDLE`) |
-| `VENT_ON` | 환기 요청 (하품 감지) | 환기 시스템 팬 ON  |
-| `VENT_OFF` | 환기 정지 | 환기 시스템 팬 즉시 Off |
-| `WIN_CLOSE` | 창문 닫기 (터널 진입) | 모터 정방향 구동 (`IN1=HIGH, IN2=LOW`) |
-| `WIN_OPEN` | 창문 열기 (터널 탈출) | 모터 역방향 구동 (`IN1=LOW, IN2=HIGH`) |
-| `SIDE_WARN` | 옆차선 근접 경고 | 경고 LED 토글(`미정`100ms 단발성 비프음 1회 출력) |
+|카메라 번호 | 전송 패킷 (ASCII) | 기능 정의 | STM32F4 액추에이터 처리 동작 |
+| :--- | :--- | :--- | :--- |
+| Cam 2 | `DROWSY_WARN` | 졸음 경고 발생 | 경고 부저 지속 패턴 출력 (`BUZZER_STATE_ALERT`) |
+| Cam 2 | `DROWSY_OK` | 졸음 상태 해제 | 경고 부저 즉시 Off (`BUZZER_STATE_IDLE`) |
+| Cam 2 | `VENT_ON` | 환기 요청 (하품 감지) | 환기 시스템 팬 ON  |
+| | `VENT_OFF` | 환기 정지 | 환기 시스템 팬 즉시 Off |
+| Cam 1 | `WIN_CLOSE` | 창문 닫기 (터널 진입) | 모터 정방향 구동 (`IN1=HIGH, IN2=LOW`) |
+| Cam 1 | `WIN_OPEN` | 창문 열기 (터널 탈출) | 모터 역방향 구동 (`IN1=LOW, IN2=HIGH`) |
+| Cam 1 | `SIDE_WARN` | 옆차선 근접 경고 | 경고 LED 토글(`미정`100ms 단발성 비프음 1회 출력) |
 
 ---
 
