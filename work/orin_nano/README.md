@@ -13,3 +13,5 @@ work/
         ├── gui.py : 제어 GUI 송출 제어
 
         └── main.py : GUI 실행 및 STM32 연동실행
+
+trtexec --onnx=rps_yolo11n.onnx --saveEngine=yolo11n.engine
