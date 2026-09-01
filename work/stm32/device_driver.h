@@ -2,29 +2,49 @@
 #include "option.h"
 #include "macro.h"
 #include "malloc.h"
-
+#include <string.h>
+#include <stdbool.h>
+#include <stdio.h>
 // Uart.c
-
 extern void Uart2_Init(int baud);
+
 extern void Uart1_Init(int baud);
-extern void Uart1_Send_Byte(char data);
-extern char Uart1_Get_Char(void);
-extern char Uart1_Get_Pressed(void);
-extern void Uart2_RX_Interrupt_Enable(int en);
+extern void UART1_GetCommand(char *out_buf);
+extern void UART1_SendChar(char c);
+extern void UART1_SendString(const char *str);
+extern void Uart1_RX_Interrupt_Enable(int en);
 
-// Led.c
+//protocol.c
 
-extern void LED_Init(void);
-extern void LED_On(void);
-extern void LED_Off(void);
-extern void LED_Display(int on);
-extern void LED_SetFloor(uint8_t floor, uint8_t state);
-extern void LED_UpdateFromSlots(void);
+typedef enum {
+    CMD_NONE,
+    CMD_DROWSY_WARN,
+    CMD_DROWSY_OK,
+    CMD_VENT_ON,
+    CMD_VENT_OFF,
+    CMD_WIN_CLOSE,
+    CMD_WIN_OPEN,
+    CMD_SIDE_WARN
+} CommandType;
 
-// Clock.c
+typedef struct {
+    const char *cmd_compare_str;
+    int length;
+    CommandType cmd_type;
+} CommandMap;
 
+#define CMD_TABLE_SIZE (sizeof(cmd_table) / sizeof(cmd_table[0]))
+extern CommandType UART_ParseCommand(char *cmd);
+
+
+//app_process.c
+extern void app_process_command(CommandType cmd);
+
+//eception.c
+extern void USART1_IRQHandler(void);
+extern void _Invalid_ISR(void);
+
+
+//clock.c
 extern void Clock_Init(void);
-
-// Timer.c
-extern void TIM3_Delay(int time_ms);
 
