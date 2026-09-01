@@ -40,3 +40,5 @@ siphash24==1.8
 sounddevice==0.5.5
 
 typing_extensions==4.15.0
+
+pyserial==3.5
