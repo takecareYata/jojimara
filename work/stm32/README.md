@@ -7,13 +7,16 @@
 
 ##  1. Hardware Architecture & Pin Map
 
-| 구분 | 장치 / 기능 | STM32F4 Pin | 인터페이스 / 모드 | 비고 |
+| 구분 | 장치 / 기능 | STM32M4 Pin | 인터페이스 / 모드 | 비고 |
 | :--- | :--- | :--- | :--- | :--- |
 | **통신** | Host UART | `PA9` (TX), `PA10` (RX) | UART1 (115200 bps, 8-N-1) | 수신 패킷 파싱 및 상태 응답 |
-| **경고** | 메인 부저 (Buzzer) | `PB0` | TIM3_CH3 (PWM / GPIO) | 졸음(지속 패턴), 사각지대(단발 비프) |
+| **경고** | 메인 부저 (Buzzer) | `PB0` | TIM3_CH3 (PWM) | 졸음(지속 패턴), 사각지대(단발 비프) |
 | **경고** | 차량 근접 경고 (Led) | `PA2` | GPIO Output | Led 토글 |
-| **환기** | 환기 모터 (Fan) | `PB1` | GPIO Output  | |
-| **창문** | 윈도우 모터 | `PA0` (IN1), `PA1` (IN2) | GPIO / PWM  | 정방향(Up) / 역방향(Down) |
+| **환기** | 공기청정 모터 | `PB8` (IN3), `PB9` (IN4), `PB11`(ENB) | TIM2_CH4(GPIO / PWM)  | |
+| **졸음** | 에어컨 모터 | `PA6` (IN1), `PA7` (IN2), `PB10`(ENA) | TIM2_CH3(GPIO / PWM)  | |
+| **창문** | 서보 모터 | `PB6` | TIM4_CH1(GPIO / PWM)  | 정방향(Up) / 역방향(Down) |
+
+
 
 ---
 
@@ -27,10 +30,9 @@
 | :--- | :--- | :--- | :--- |
 | Cam 2 | `DROWSY_WARN` | 졸음 경고 발생 | 경고 부저 지속 패턴 출력 (`BUZZER_STATE_ALERT`) |
 | Cam 2 | `DROWSY_OK` | 졸음 상태 해제 | 경고 부저 즉시 Off (`BUZZER_STATE_IDLE`) |
-| Cam 2 | `VENT_ON` | 환기 요청 (하품 감지) | 환기 시스템 팬 ON  |
-| | `VENT_OFF` | 환기 정지 | 환기 시스템 팬 즉시 Off |
-| Cam 1 | `WIN_CLOSE` | 창문 닫기 (터널 진입) | 모터 정방향 구동 (`IN1=HIGH, IN2=LOW`) |
-| Cam 1 | `WIN_OPEN` | 창문 열기 (터널 탈출) | 모터 역방향 구동 (`IN1=LOW, IN2=HIGH`) |
+| Cam 2 | `VENT_ON` | 에어컨 요청 (하품 감지) | 에어컨 모터 정방향 구동( 10초만 작동 후 정지 )  |
+| Cam 1 | `WIN_CLOSE` | 창문 닫기 (터널 진입) | 창문(서보모터 정방향), 공기청정모터 정방향 구동 (`IN1=HIGH, IN2=LOW`) |
+| Cam 1 | `WIN_OPEN` | 창문 열기 (터널 탈출) | 창문(서보모터 역방향), 공기청정모터 정지 |
 | Cam 1 | `SIDE_WARN` | 옆차선 근접 경고 | 경고 LED 토글(`미정`100ms 단발성 비프음 1회 출력) |
 
 ---
@@ -47,6 +49,7 @@
 [ STM32F4 Peripheral Controller ]
  ├─ Buzzer (TIM3) / LED ── 졸음 경고 패턴 및 측면 경고음
  ├─ Ventilation Motor   ── 환기 구동
+ ├─ Airconditioner Motor── 에어컨 구동
  └─ Window Motor        ── 터널 출입 시 창문 개폐
  ```
 
