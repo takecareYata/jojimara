@@ -48,3 +48,10 @@ extern void _Invalid_ISR(void);
 //clock.c
 extern void Clock_Init(void);
 
+//motor.c
+extern void motors_init(void);
+extern void air_con_motor_start(void);
+extern void air_con_motor_stop(void);
+extern void air_purification_motor_start(void);
+extern void air_purification_motor_stop(void);
+
