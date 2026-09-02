@@ -12,7 +12,7 @@
 | **통신** | Host UART | `PA9` (TX), `PA10` (RX) | UART1 (115200 bps, 8-N-1) | 수신 패킷 파싱 및 상태 응답 |
 | **경고** | 메인 부저 (Buzzer) | `PB0` | TIM3_CH3 (PWM) | 졸음(지속 패턴), 사각지대(단발 비프) |
 | **경고** | 차량 근접 경고 (Led) | `PA2` | GPIO Output | Led 토글 |
-| **환기** | 공기청정 모터 | `PB8` (IN3), `PB9` (IN4), `PB11`(ENB) | TIM2_CH4(GPIO / PWM)  | |
+| **환기** | 공기청정 모터 | `PB8` (IN3), `PB9` (IN4), `PA1`(ENB) | TIM2_CH2(GPIO / PWM)  | |
 | **졸음** | 에어컨 모터 | `PA6` (IN1), `PA7` (IN2), `PB10`(ENA) | TIM2_CH3(GPIO / PWM)  | |
 | **창문** | 서보 모터 | `PB6` | TIM4_CH1(GPIO / PWM)  | 정방향(Up) / 역방향(Down) |
 
