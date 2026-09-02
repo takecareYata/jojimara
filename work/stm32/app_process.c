@@ -6,21 +6,27 @@ void app_process_command(CommandType cmd){
     printf("3\n");
     switch(cmd){
         case CMD_DROWSY_WARN:
-            //작동 함수 작성
-            printf("CMD_DROWSY_WARN receive\n");
+            //경고 부저
             is_success = true;
             break;
         case CMD_DROWSY_OK:
+            //경고부저 off
             break;
         case CMD_VENT_ON:
-            break;
-        case CMD_VENT_OFF:
+            air_con_motor_start();
+            is_success = true;
             break;
         case CMD_WIN_CLOSE:
+            //서보모터 창문닫기
+            air_purification_motor_start();
+            is_success = true;
             break;
         case CMD_WIN_OPEN:
+            air_purification_motor_stop( );
+            is_success = true;
             break;
         case CMD_SIDE_WARN:
+            // 경고 LED
             break;
 
         default:
