@@ -7,7 +7,7 @@ static void Sys_Init(int baud)
     Clock_Init();
 	Uart2_Init(baud);
     Uart1_Init(baud);
-    
+    motors_init();
 	setvbuf(stdout, NULL, _IONBF, 0);
 }
 
@@ -20,7 +20,7 @@ void Main(void){
     Uart1_RX_Interrupt_Enable(1);
     printf("test_start\n");
     while(1){
-       
+        
         if(Uart_Data_In){
             printf("before[Jetson -> MCU]: %s\r\n", cmd_buf);
             app_process_command(UART_ParseCommand(cmd_buf));
