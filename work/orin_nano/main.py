@@ -10,6 +10,7 @@ from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import QApplication, QMainWindow
 
 import cv2
+import numpy as np
 import cam1
 import cam0
 import video
@@ -31,7 +32,7 @@ from gui import Ui_MainWindow
 ROAD_CAMERA_INDEX = 2
 DRIVER_CAMERA_INDEX = 0
 
-FALLBACK_VIDEO_PATH = str(BASE_DIR / "test_video.mp4")
+FALLBACK_VIDEO_PATH = str(BASE_DIR / "test_video1.mp4")
 YOLO_ENGINE_PATH = str(BASE_DIR / "yolo11n.engine")
 
 # Jetson - STM32 UART 설정
@@ -64,8 +65,10 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         self.cam1_retry_count = 0
         self.MAX_CAM1_RETRY = 100  # 30ms * 100회 = 약 3초간 초기화 대기
 
-        # 전방 상태 변화 추적 플래그 (Edge Triggering)
-        self.previous_side_warning = False
+        # 전방 상태 변화 추적 플래그 (Edge Triggering) - 3가지 ROI 개별 추적
+        self.previous_roi_left = False
+        self.previous_roi_center = False
+        self.previous_roi_right = False
         self.previous_tunnel_type = None
 
         # 터널 출구 추적 상태
@@ -153,7 +156,9 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
 
     def _reset_detection_states(self):
         """영상 시크/이동 시 중복 명령 및 판단 오류 방지를 위한 상태 초기화"""
-        self.previous_side_warning = False
+        self.previous_roi_left = False
+        self.previous_roi_center = False
+        self.previous_roi_right = False
         self.previous_tunnel_type = None
         self.exit_tracking_active = False
         self.last_exit_seen_time = None
@@ -200,27 +205,44 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         print("[ALARM] Take some fresh air sir!")
 
     def process_road_status(self, frame, status_dict):
-        """전방 감지 상태에 따라 OSD 오버레이와 UART 명령을 처리한다."""
-        side_warning = status_dict.get("roi_warning", False)
+        """전방 감지 상태(3개 ROI 분할)에 따라 OSD 오버레이와 UART 명령을 처리한다."""
+        # 3가지 ROI 경고 상태 읽기
+        warn_left = status_dict.get("roi_warning_left", False)
+        warn_center = status_dict.get("roi_warning_center", False)
+        warn_right = status_dict.get("roi_warning_right", False)
 
-        # 1. 근접 차량 (ROI) 처리
-        if side_warning:
+        # 1. 화면 OSD 오버레이 (영역별 표시)
+        active_rois = []
+        if warn_left: active_rois.append("LEFT")
+        if warn_center: active_rois.append("CENTER")
+        if warn_right: active_rois.append("RIGHT")
+
+        if active_rois:
+            roi_str = ", ".join(active_rois)
             cv2.putText(
                 frame,
-                "STATUS: VEHICLE IN ROI!",
+                f"WARNING : {roi_str}",
                 (30, 50),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1,
+                0.9,
                 (0, 0, 255),
                 2,
             )
 
-        if side_warning and not self.previous_side_warning:
-            self.uart.send_command("SIDE_WARN")
+        # 2. UART 전송 Edge Trigger (각 영역별 상태가 False -> True로 변할 때만 명령 전송)
+        if warn_left and not self.previous_roi_left:
+            self.uart.send_command("WARN_LEFT")
+        if warn_center and not self.previous_roi_center:
+            self.uart.send_command("WARN_CENTER")
+        if warn_right and not self.previous_roi_right:
+            self.uart.send_command("WARN_RIGHT")
 
-        self.previous_side_warning = side_warning
+        # 이전 ROI 상태 갱신
+        self.previous_roi_left = warn_left
+        self.previous_roi_center = warn_center
+        self.previous_roi_right = warn_right
 
-        # 2. 터널 입구/출구 처리
+        # 3. 터널 입구/출구 처리
         tunnel_entrance = status_dict.get("tunnel_entrance", False)
         tunnel_exit = status_dict.get("tunnel_exit", False)
         current_time = time.monotonic()
@@ -284,7 +306,8 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
 
         # 1. 전방 카메라(cam1) 또는 비디오(video) 영상 처리
         if not self.using_video_fallback:
-            road_frame = cam1.cam1_get_frame()
+            # cam1.cam1_get_frame()이 (main_frame, debug_frame) 튜플을 반환하므로 언패킹 처리
+            road_frame, debug_frame = cam1.cam1_get_frame()
             if road_frame is not None:
                 road_status = cam1.cam1_get_status()
                 self.process_road_status(road_frame, road_status)
@@ -317,6 +340,10 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
                 self.show_frame(self.lblDriverCamera, processed_driver)
 
     def show_frame(self, label, frame):
+        # 방어 코드: frame이 None이거나 NumPy 배열이 아닌 경우 무시
+        if frame is None or not isinstance(frame, np.ndarray):
+            return
+
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_frame.shape
         q_image = QImage(rgb_frame.data, w, h, ch * w, QImage.Format_RGB888).copy()
