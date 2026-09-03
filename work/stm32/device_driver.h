@@ -24,7 +24,9 @@ typedef enum {
     CMD_VENT_OFF,
     CMD_WIN_CLOSE,
     CMD_WIN_OPEN,
-    CMD_SIDE_WARN
+    CMD_WARN_CENTER,
+    CMD_WARN_RIGHT,
+    CMD_WARN_LEFT
 } CommandType;
 
 typedef struct {
@@ -41,17 +43,47 @@ extern CommandType UART_ParseCommand(char *cmd);
 extern void app_process_command(CommandType cmd);
 
 //eception.c
-extern void USART1_IRQHandler(void);
-extern void _Invalid_ISR(void);
-
+extern void USART1_IRQHandler();
+extern void TIM1_UP_TIM10_IRQHandler();
+extern void _Invalid_ISR();
 
 //clock.c
-extern void Clock_Init(void);
+extern void Clock_Init();
 
 //motor.c
-extern void motors_init(void);
-extern void air_con_motor_start(void);
-extern void air_con_motor_stop(void);
-extern void air_purification_motor_start(void);
-extern void air_purification_motor_stop(void);
+extern void motors_init();
+extern void air_con_motor_start();
+extern void air_con_motor_stop();
+extern void air_purification_motor_start();
+extern void air_purification_motor_stop();
+extern void air_con_running_interrupt();
 
+//buzzer.c
+extern void Buzzer_Init();
+extern void Buzzer_Play(uint32_t freq_hz);
+extern void Buzzer_Mute();
+extern void start_buzzer();
+extern void stop_buzzer();
+extern void buzzer_interrupt();
+
+//window_servo_motor.c
+extern void window_init();
+extern void window_close();
+extern void window_open();
+
+//timer.c
+extern void TIM1_1ms_Interrupt_Init();
+
+//led.c
+
+typedef enum {
+   CENTER,
+   RIGHT,
+   LEFT,
+   NONE
+} LED_STATE;
+
+extern void led_init();
+extern void led_all_off();
+extern void led_interrupt();
+extern void set_led_warning(LED_STATE led_state);

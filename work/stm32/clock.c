@@ -1,6 +1,6 @@
 #include "device_driver.h"
 
-void Clock_Init(void)
+void Clock_Init()
 {
     RCC->CR |= (1 << 0); 
     while(!Macro_Check_Bit_Set(RCC->CR, 1));
