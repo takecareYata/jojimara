@@ -32,7 +32,7 @@ from gui import Ui_MainWindow
 ROAD_CAMERA_INDEX = 2
 DRIVER_CAMERA_INDEX = 0
 
-FALLBACK_VIDEO_PATH = str(BASE_DIR / "test_video.mp4")
+FALLBACK_VIDEO_PATH = str(BASE_DIR / "road_rain_test.mp4")
 YOLO_ENGINE_PATH = str(BASE_DIR / "yolo11n.engine")
 
 # Jetson - STM32 UART 설정
@@ -119,7 +119,8 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         driver_width = max(200, min(int(frame_width * 0.28), 400))
         driver_height = int(driver_width * 3 / 4)
         driver_x = max(0, frame_width - driver_width - margin)
-        driver_y = max(0, frame_height - driver_height - margin)
+        #driver_y = max(0, frame_height - driver_height - margin)
+        driver_y = margin
         self.lblDriverCamera.setGeometry(driver_x, driver_y, driver_width, driver_height)
 
         warning_width = max(300, min(int(frame_width * 0.38), 550))

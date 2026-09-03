@@ -65,10 +65,10 @@ border: 2px solid gray;</string>
       <widget class="QLabel" name="lblDriverCamera">
        <property name="geometry">
         <rect>
-         <x>820</x>
-         <y>390</y>
-         <width>320</width>
-         <height>240</height>
+         <x>849</x>
+         <y>10</y>
+         <width>301</width>
+         <height>211</height>
         </rect>
        </property>
        <property name="styleSheet">
