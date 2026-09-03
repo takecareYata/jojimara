@@ -16,6 +16,9 @@ VALID_COMMANDS = {
     "WIN_CLOSE",
     "WIN_OPEN",
     "SIDE_WARN",
+    "WARN_CENTER",
+    "WARN_LEFT",
+    "WARN_RIGHT"
 }
 
 
