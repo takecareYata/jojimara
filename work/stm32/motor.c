@@ -54,12 +54,17 @@ void motors_init()
     Macro_Clear_Bit(GPIOB->ODR, 9);
 }
 
+volatile int air_con_running_tick = 0;
+volatile int is_ac_running_tick = 0;
+
 // [에어컨] 가동 및 정지
 void air_con_motor_start()
 {
     printf("6666\n");
     Macro_Clear_Bit(GPIOA->ODR, 6);   // IN1 = 0
     Macro_Set_Bit(GPIOA->ODR, 7); // IN2 = 1
+    is_ac_running_tick = 1;
+    air_con_running_tick = 0;
     TIM2->CCR3 = 1000;               
 }
 
@@ -70,6 +75,17 @@ void air_con_motor_stop()
     TIM2->CCR3 = 0;
 }
 
+void air_con_running_interrupt(){
+    if(is_ac_running_tick){
+        air_con_running_tick++;
+
+        if(air_con_running_tick >= 10000){
+            air_con_motor_stop();
+            is_ac_running_tick =0;
+        }
+    }
+}
+
 // [공기청정] 가동 및 정지
 void air_purification_motor_start()
 {
@@ -77,6 +93,7 @@ void air_purification_motor_start()
     Macro_Clear_Bit(GPIOB->ODR, 8);   // IN3 = 1
     Macro_Set_Bit(GPIOB->ODR, 9); // IN4 = 0
     TIM2->CCR2 = 1000;               
+    Macro_Set_Bit(TIM1->CR1, 0);
 }
 
 void air_purification_motor_stop()

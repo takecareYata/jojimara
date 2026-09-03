@@ -19,4 +19,6 @@ void TIM1_1ms_Interrupt_Init()
     // 4. NVIC 인터럽트 활성화
     NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
     NVIC_SetPriority(TIM1_UP_TIM10_IRQn, 2); // 통신 인터럽트보다 우선순위를 낮게 설정 권장
+
+    Macro_Set_Bit(TIM1->CR1, 0);     // TIM1 카운터
 }

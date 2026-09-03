@@ -56,24 +56,50 @@ void Buzzer_Play(uint32_t freq_hz)
 }
 
 volatile uint32_t warning_tick = 0;
+volatile static int warning_state = 0;
 
 // 소리만 잠시 끄는 함수 (PWM OFF)
 void Buzzer_Mute()
 {
     Macro_Clear_Bit(TIM3->CCER, 8);
 }
+volatile int is_bz_running_tick =0;
 
 // 경고음 완전히 시작 (명령 수신 시 1회 호출)
 void start_buzzer()
 {
     warning_tick = 0;
     Buzzer_Play(3000);
-    Macro_Set_Bit(TIM1->CR1, 0);     // TIM1 카운터
+    is_bz_running_tick =1;
 }
 
 // 경고음 완전히 정지 (명령 수신 시 1회 호출)
 void stop_buzzer()
 {
-    Macro_Clear_Bit(TIM1->CR1, 0);   // TIM1 카운터 정지 (인터럽트 중단)
+    is_bz_running_tick =0;
     Buzzer_Mute();                   // PWM 출력 정지
+}
+
+void buzzer_interrupt(){
+    if(is_bz_running_tick){
+        warning_tick++;
+
+        if (warning_tick >= 250) // 250ms 주기마다 On/Off 토글
+        {
+            warning_tick = 0;    
+            warning_state ^= 1; 
+
+            if (warning_state)
+            {
+                // 소리만 잠시 끔 (TIM1 카운터는 계속 돌아야 함)
+                Buzzer_Mute(); 
+            }
+            else
+            {
+                // 소리 켬
+                Buzzer_Play(3000); // 삐- 삐- 단속음  
+            }
+        }
+    }
+    
 }
