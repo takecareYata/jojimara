@@ -11,6 +11,7 @@ static void Sys_Init(int baud)
     Buzzer_Init();
     TIM1_1ms_Interrupt_Init();
     window_init();
+    led_init();
 	setvbuf(stdout, NULL, _IONBF, 0);
 }
 

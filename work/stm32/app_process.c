@@ -6,7 +6,7 @@ void app_process_command(CommandType cmd){
     printf("3\n");
     switch(cmd){
         case CMD_DROWSY_WARN:
-            //경고 부저
+            //졸음 경고 부저
             start_buzzer();
             is_success = true;
             break;
@@ -30,8 +30,17 @@ void app_process_command(CommandType cmd){
             air_purification_motor_stop( );
             is_success = true;
             break;
-        case CMD_SIDE_WARN:
-            // 경고 LED
+        case CMD_WARN_CENTER:
+            set_led_warning(CENTER);
+            is_success = true;
+            break;
+        case CMD_WARN_RIGHT:
+            set_led_warning(RIGHT);
+            is_success = true;
+            break;
+        case CMD_WARN_LEFT:
+            set_led_warning(LEFT);
+            is_success = true;
             break;
 
         default:

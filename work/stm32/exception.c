@@ -53,5 +53,6 @@ void TIM1_UP_TIM10_IRQHandler()
 
         air_con_running_interrupt();
         buzzer_interrupt();
+        led_interrupt();
     }
 }

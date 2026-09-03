@@ -24,7 +24,9 @@ typedef enum {
     CMD_VENT_OFF,
     CMD_WIN_CLOSE,
     CMD_WIN_OPEN,
-    CMD_SIDE_WARN
+    CMD_WARN_CENTER,
+    CMD_WARN_RIGHT,
+    CMD_WARN_LEFT
 } CommandType;
 
 typedef struct {
@@ -71,3 +73,17 @@ extern void window_open();
 
 //timer.c
 extern void TIM1_1ms_Interrupt_Init();
+
+//led.c
+
+typedef enum {
+   CENTER,
+   RIGHT,
+   LEFT,
+   NONE
+} LED_STATE;
+
+extern void led_init();
+extern void led_all_off();
+extern void led_interrupt();
+extern void set_led_warning(LED_STATE led_state);
