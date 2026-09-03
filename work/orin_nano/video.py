@@ -16,6 +16,11 @@ CLASS_VEHICLE = 0
 CLASS_TUNNEL_ENTRANCE = 1
 CLASS_TUNNEL_EXIT = 2
 
+# 테스트 영상 처리 해상도와 실시간 재생 보정값
+VIDEO_PROCESS_WIDTH = 1280
+VIDEO_PROCESS_HEIGHT = 720
+MAX_REALTIME_FRAME_SKIP = 5
+
 
 class LaneDetector:
     """차선 검출 및 가변 ROI 계산을 담당하는 클래스"""
@@ -228,14 +233,16 @@ class LaneDetector:
 
 class VideoProcessingThread(threading.Thread):
     def __init__(self, video_path="test_video.mp4", engine_path="yolo11n.engine"):
-        super().__init__()
+        super().__init__(daemon=True)
         self.video_path = video_path
         self.engine_path = engine_path
         self.running = False
+        self.stop_event = threading.Event()
         
         self.is_paused = False
         self.step_frame = False
         self.seek_offset = 0
+        self.source_fps = 30.0
         
         self.tracked_roi_vehicles = {}
         self.tracked_tunnels = {}
@@ -258,6 +265,17 @@ class VideoProcessingThread(threading.Thread):
         self.model = None
         self.lane_detector = LaneDetector()
 
+    def _reset_tracking(self):
+        """영상 위치 이동 또는 반복 재생 시 이전 추적 정보를 초기화한다."""
+        self.tracked_roi_vehicles.clear()
+        self.tracked_tunnels.clear()
+        self.lane_detector.reset()
+
+    def stop(self):
+        """영상 처리 스레드의 종료를 요청한다."""
+        self.running = False
+        self.stop_event.set()
+
     def run(self):
         try:
             print(f"[YOLO] Loading TensorRT Custom Engine: {self.engine_path}")
@@ -266,33 +284,69 @@ class VideoProcessingThread(threading.Thread):
         except Exception as e:
             print(f"[YOLO Error] Failed to load TensorRT engine: {e}")
 
+        if self.stop_event.is_set():
+            return
+
         cap = cv2.VideoCapture(self.video_path)
         if not cap.isOpened():
             print(f"[Video Error] 비디오 파일 '{self.video_path}'를 열 수 없습니다.")
             return
 
+        if self.stop_event.is_set():
+            cap.release()
+            return
+
+        source_fps = cap.get(cv2.CAP_PROP_FPS)
+        if not np.isfinite(source_fps) or source_fps <= 0 or source_fps > 120:
+            source_fps = 30.0
+
+        with self.lock:
+            self.source_fps = source_fps
+
+        frame_interval = 1.0 / source_fps
+        next_frame_time = time.monotonic()
+
         self.running = True
 
-        while self.running:
-            if self.seek_offset != 0:
-                curr_pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
-                new_pos = max(0, curr_pos + self.seek_offset)
-                cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
+        while self.running and not self.stop_event.is_set():
+            # GUI에서 전달한 키 제어 값을 안전하게 가져온다.
+            with self.lock:
+                seek_offset = self.seek_offset
                 self.seek_offset = 0
+                is_paused = self.is_paused
+                step_requested = self.step_frame
+                if step_requested:
+                    self.step_frame = False
 
-            if self.is_paused and not self.step_frame:
+            if seek_offset != 0:
+                curr_pos = cap.get(cv2.CAP_PROP_POS_FRAMES)
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                new_pos = max(0, curr_pos + seek_offset)
+                if total_frames > 0:
+                    new_pos = min(new_pos, total_frames - 1)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
+                self._reset_tracking()
+                next_frame_time = time.monotonic()
+
+            if is_paused and not step_requested:
+                next_frame_time = time.monotonic()
                 time.sleep(0.03)
                 continue
-
-            self.step_frame = False
 
             ret, frame = cap.read()
             if not ret:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                self.tracked_roi_vehicles.clear()
-                self.tracked_tunnels.clear()
-                self.lane_detector.reset()
+                self._reset_tracking()
+                next_frame_time = time.monotonic()
                 continue
+
+            # 원본 영상이 고해상도여도 처리량이 지나치게 커지지 않게 제한한다.
+            if frame.shape[1] != VIDEO_PROCESS_WIDTH or frame.shape[0] != VIDEO_PROCESS_HEIGHT:
+                frame = cv2.resize(
+                    frame,
+                    (VIDEO_PROCESS_WIDTH, VIDEO_PROCESS_HEIGHT),
+                    interpolation=cv2.INTER_AREA,
+                )
 
             height, width = frame.shape[:2]
 
@@ -429,7 +483,7 @@ class VideoProcessingThread(threading.Thread):
                 color_right = (0, 0, 255) if flag_right else (255, 200, 0)
                 cv2.polylines(display_frame, [right_roi], isClosed=True, color=color_right, thickness=1 if not flag_right else 2)
 
-            if self.is_paused:
+            if is_paused:
                 cv2.putText(display_frame, "PAUSED (Space: Resume, D: 1 Step)", (20, 100),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
@@ -445,9 +499,42 @@ class VideoProcessingThread(threading.Thread):
                 self.tunnel_entrance_detected = has_entrance
                 self.tunnel_exit_detected = has_exit
 
-            time.sleep(0.01)
+            if is_paused:
+                # 일시정지 중 한 프레임 처리 후 다시 대기한다.
+                next_frame_time = time.monotonic()
+                continue
+
+            # 원본 FPS에 맞춰 재생하고, 추론이 늦으면 지연 프레임을 건너뛴다.
+            next_frame_time += frame_interval
+            remaining = next_frame_time - time.monotonic()
+
+            if remaining > 0:
+                time.sleep(remaining)
+            else:
+                frames_to_skip = min(
+                    MAX_REALTIME_FRAME_SKIP,
+                    int((-remaining) // frame_interval),
+                )
+
+                skipped = 0
+                reached_end = False
+                for _ in range(frames_to_skip):
+                    if not cap.grab():
+                        reached_end = True
+                        break
+                    skipped += 1
+
+                next_frame_time += skipped * frame_interval
+
+                if reached_end:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    self._reset_tracking()
+                    next_frame_time = time.monotonic()
+                elif time.monotonic() - next_frame_time > frame_interval * MAX_REALTIME_FRAME_SKIP:
+                    next_frame_time = time.monotonic()
 
         cap.release()
+        self.running = False
 
 
 # Global thread handle
@@ -459,7 +546,7 @@ def video_start(video_path="test_video.mp4", engine_path="yolo11n.engine"):
         _video_thread = VideoProcessingThread(video_path=video_path, engine_path=engine_path)
         _video_thread.start()
 
-def video_get_data():
+def video_get_data(include_debug=True):
     if _video_thread is None:
         return None, None, {
             "roi_warning_left": False,
@@ -470,7 +557,11 @@ def video_get_data():
         }
     with _video_thread.lock:
         frame = _video_thread.processed_frame.copy() if _video_thread.processed_frame is not None else None
-        debug_frame = _video_thread.debug_frame.copy() if _video_thread.debug_frame is not None else None
+        debug_frame = (
+            _video_thread.debug_frame.copy()
+            if include_debug and _video_thread.debug_frame is not None
+            else None
+        )
         
         status = {
             "roi_warning_left": _video_thread.warning_left,
@@ -483,19 +574,32 @@ def video_get_data():
 
 def video_toggle_pause():
     if _video_thread is not None:
-        _video_thread.is_paused = not _video_thread.is_paused
+        with _video_thread.lock:
+            _video_thread.is_paused = not _video_thread.is_paused
 
 def video_step_frame():
     if _video_thread is not None:
-        _video_thread.step_frame = True
+        with _video_thread.lock:
+            _video_thread.step_frame = True
 
 def video_seek(frames):
     if _video_thread is not None:
-        _video_thread.seek_offset += frames
+        with _video_thread.lock:
+            _video_thread.seek_offset += int(frames)
+            # 일시정지 중에도 이동한 위치의 화면을 즉시 한 장 표시한다.
+            _video_thread.step_frame = True
+
+def video_seek_seconds(seconds):
+    """영상 FPS를 기준으로 지정한 초만큼 앞뒤로 이동한다."""
+    if _video_thread is not None:
+        with _video_thread.lock:
+            frame_offset = int(round(float(seconds) * _video_thread.source_fps))
+            _video_thread.seek_offset += frame_offset
+            _video_thread.step_frame = True
 
 def video_stop():
     global _video_thread
     if _video_thread is not None:
-        _video_thread.running = False
-        _video_thread.join()
+        _video_thread.stop()
+        _video_thread.join(timeout=3.0)
         _video_thread = None

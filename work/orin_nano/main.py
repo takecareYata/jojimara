@@ -6,8 +6,8 @@ from pathlib import Path
 from threading import Thread
 
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtGui import QImage, QKeySequence, QPixmap
+from PyQt5.QtWidgets import QApplication, QMainWindow, QShortcut
 
 import cv2
 import numpy as np
@@ -32,7 +32,7 @@ from gui import Ui_MainWindow
 ROAD_CAMERA_INDEX = 2
 DRIVER_CAMERA_INDEX = 0
 
-FALLBACK_VIDEO_PATH = str(BASE_DIR / "test_video1.mp4")
+FALLBACK_VIDEO_PATH = str(BASE_DIR / "test_video.mp4")
 YOLO_ENGINE_PATH = str(BASE_DIR / "yolo11n.engine")
 
 # Jetson - STM32 UART 설정
@@ -41,6 +41,9 @@ UART_BAUD_RATE = 115200
 
 # 터널 출구 통과 판단 지연 시간 (초)
 EXIT_CLEAR_DELAY_SECONDS = 1.5
+
+# 테스트 영상 A/S 키 이동 시간
+VIDEO_SEEK_SECONDS = 5
 
 
 class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
@@ -54,6 +57,9 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         self.txtStmLog.document().setMaximumBlockCount(500)
         self.lblWarningText.setText("DROWSINESS ALERT!\nWAKE UP!")
         self.lblWarningText.setAlignment(Qt.AlignCenter)
+
+        # 로그창 등에 포커스가 있어도 영상 단축키가 동작하도록 설정한다.
+        self.setup_video_shortcuts()
 
         # 운전자 상태 플래그
         self.warning_active = False
@@ -164,37 +170,45 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         self.last_exit_seen_time = None
         self.exit_open_sent = False
 
-    def keyPressEvent(self, event):
+    def setup_video_shortcuts(self):
+        """하위 위젯의 포커스와 관계없이 동작하는 영상 단축키를 만든다."""
+        self.video_shortcuts = []
+
+        shortcut_actions = (
+            ("Space", self.toggle_video_pause),
+            ("D", self.step_video_frame),
+            ("A", lambda: self.seek_video(-VIDEO_SEEK_SECONDS)),
+            ("S", lambda: self.seek_video(VIDEO_SEEK_SECONDS)),
+            ("Q", self.close_video_mode),
+        )
+
+        for key_text, action in shortcut_actions:
+            shortcut = QShortcut(QKeySequence(key_text), self)
+            shortcut.setContext(Qt.WindowShortcut)
+            shortcut.activated.connect(action)
+            self.video_shortcuts.append(shortcut)
+
+    def toggle_video_pause(self):
+        """테스트 영상 모드일 때 재생과 일시정지를 전환한다."""
         if self.using_video_fallback:
-            key = event.key()
+            video.video_toggle_pause()
 
-            if key == Qt.Key_Space:
-                if hasattr(video, "video_toggle_pause"):
-                    video.video_toggle_pause()
-                    self.add_stm_log("[키 제어] 재생/일시정지 토글")
+    def step_video_frame(self):
+        """일시정지된 테스트 영상을 한 프레임 진행한다."""
+        if self.using_video_fallback:
+            video.video_step_frame()
+            self._reset_detection_states()
 
-            elif key == Qt.Key_D:
-                if hasattr(video, "video_step_frame"):
-                    video.video_step_frame()
-                    self._reset_detection_states()
-                    self.add_stm_log("[키 제어] 1프레임 전진")
+    def seek_video(self, seconds):
+        """테스트 영상을 지정한 초만큼 이동한다."""
+        if self.using_video_fallback:
+            video.video_seek_seconds(seconds)
+            self._reset_detection_states()
 
-            elif key == Qt.Key_A:
-                if hasattr(video, "video_seek"):
-                    video.video_seek(-30)
-                    self._reset_detection_states()
-                    self.add_stm_log("[키 제어] 30프레임 뒤로")
-
-            elif key == Qt.Key_S:
-                if hasattr(video, "video_seek"):
-                    video.video_seek(30)
-                    self._reset_detection_states()
-                    self.add_stm_log("[키 제어] 30프레임 앞으로")
-
-            elif key == Qt.Key_Q:
-                self.close()
-
-        super().keyPressEvent(event)
+    def close_video_mode(self):
+        """테스트 영상 모드에서 Q키로 프로그램을 종료한다."""
+        if self.using_video_fallback:
+            self.close()
 
     def drowsiness_alarm(self):
         while self.drowsy_alarm_running:
@@ -307,7 +321,7 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         # 1. 전방 카메라(cam1) 또는 비디오(video) 영상 처리
         if not self.using_video_fallback:
             # cam1.cam1_get_frame()이 (main_frame, debug_frame) 튜플을 반환하므로 언패킹 처리
-            road_frame, debug_frame = cam1.cam1_get_frame()
+            road_frame, _ = cam1.cam1_get_frame(include_debug=False)
             if road_frame is not None:
                 road_status = cam1.cam1_get_status()
                 self.process_road_status(road_frame, road_status)
@@ -317,12 +331,15 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
                 self.cam1_retry_count += 1
                 # 대기 시간(약 3초) 동안 프레임이 안 나올 경우에만 Video Fallback 전환
                 if self.cam1_retry_count > self.MAX_CAM1_RETRY:
+                    # Cam1의 카메라와 TensorRT 자원을 먼저 정리한 뒤 영상을 시작한다.
+                    cam1.cam1_stop()
                     self.using_video_fallback = True
                     self.add_stm_log("cam1 미작동: 비디오 영상 모드로 전환 (키보드 단축키 사용 가능)")
                     video.video_start(video_path=FALLBACK_VIDEO_PATH, engine_path=YOLO_ENGINE_PATH)
 
         if self.using_video_fallback:
-            video_frame, debug_frame, video_status = video.video_get_data()
+            # GUI에 표시하지 않는 차선 디버그 영상은 복사하지 않는다.
+            video_frame, _, video_status = video.video_get_data(include_debug=False)
             if video_frame is not None:
                 self.process_road_status(video_frame, video_status)
                 self.show_frame(self.lblRoadCamera, video_frame)

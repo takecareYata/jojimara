@@ -216,10 +216,11 @@ class LaneDetector:
 
 class Cam1Thread(threading.Thread):
     def __init__(self, cam_id=2, engine_path="yolo11n.engine"):
-        super().__init__()
+        super().__init__(daemon=True)
         self.cam_id = cam_id
         self.engine_path = engine_path
         self.running = False
+        self.stop_event = threading.Event()
         
         self.tracked_roi_vehicles = {}
         self.tracked_tunnels = {}
@@ -234,6 +235,7 @@ class Cam1Thread(threading.Thread):
         self.warning_left = False
         self.warning_center = False
         self.warning_right = False
+        self.warning_triggered = False
         
         self.tunnel_entrance_detected = False
         self.tunnel_exit_detected = False
@@ -242,13 +244,14 @@ class Cam1Thread(threading.Thread):
         self.model = None
         self.lane_detector = LaneDetector()
 
-    def run(self):
-        try:
-            print(f"[YOLO] Loading TensorRT Engine: {self.engine_path}")
-            self.model = YOLO(self.engine_path, task='detect')
-        except Exception as e:
-            print(f"[YOLO Error] Failed to load TensorRT engine: {e}")
+    def stop(self):
+        """Cam1 처리 스레드의 종료를 요청한다."""
+        self.running = False
+        self.stop_event.set()
 
+    def run(self):
+        # 카메라 연결을 먼저 확인하여, 카메라가 없을 때 TensorRT 엔진을
+        # 불필요하게 로드하지 않도록 한다.
         cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM1_FRAME_WIDTH)
@@ -260,9 +263,23 @@ class Cam1Thread(threading.Thread):
             print(f"[CAM1 Error] Camera {self.cam_id}를 열 수 없습니다.")
             return
 
+        if self.stop_event.is_set():
+            cap.release()
+            return
+
+        try:
+            print(f"[YOLO] Loading TensorRT Engine: {self.engine_path}")
+            self.model = YOLO(self.engine_path, task='detect')
+        except Exception as e:
+            print(f"[YOLO Error] Failed to load TensorRT engine: {e}")
+
+        if self.stop_event.is_set():
+            cap.release()
+            return
+
         self.running = True
 
-        while self.running:
+        while self.running and not self.stop_event.is_set():
             ret, frame = cap.read()
             if not ret:
                 time.sleep(0.01)
@@ -412,6 +429,7 @@ class Cam1Thread(threading.Thread):
                 self.tunnel_exit_detected = has_exit
 
         cap.release()
+        self.running = False
 
 
 # Global 스레드 객체
@@ -429,13 +447,17 @@ def cam1_start(cam_id=2, engine_path="yolo11n.engine"):
         _cam1_thread = Cam1Thread(cam_id=cam_id, engine_path=engine_path)
         _cam1_thread.start()
 
-def cam1_get_frame():
+def cam1_get_frame(include_debug=True):
     """도로 프레임을 가져올 때 호출"""
     if _cam1_thread is None:
         return None, None
     with _cam1_thread.lock:
         main_f = _cam1_thread.processed_frame.copy() if _cam1_thread.processed_frame is not None else None
-        debug_f = _cam1_thread.debug_frame.copy() if _cam1_thread.debug_frame is not None else None
+        debug_f = (
+            _cam1_thread.debug_frame.copy()
+            if include_debug and _cam1_thread.debug_frame is not None
+            else None
+        )
         return main_f, debug_f
 
 def cam1_get_status():
@@ -443,18 +465,18 @@ def cam1_get_status():
     if _cam1_thread is None:
         return {
             "roi_warning": False,
-            "roi_left_warning": False,
-            "roi_center_warning": False,
-            "roi_right_warning": False,
+            "roi_warning_left": False,
+            "roi_warning_center": False,
+            "roi_warning_right": False,
             "tunnel_entrance": False,
             "tunnel_exit": False
         }
     with _cam1_thread.lock:
         return {
             "roi_warning": _cam1_thread.warning_triggered,
-            "roi_left_warning": _cam1_thread.warning_left,
-            "roi_center_warning": _cam1_thread.warning_center,
-            "roi_right_warning": _cam1_thread.warning_right,
+            "roi_warning_left": _cam1_thread.warning_left,
+            "roi_warning_center": _cam1_thread.warning_center,
+            "roi_warning_right": _cam1_thread.warning_right,
             "tunnel_entrance": _cam1_thread.tunnel_entrance_detected,
             "tunnel_exit": _cam1_thread.tunnel_exit_detected
         }
@@ -463,6 +485,6 @@ def cam1_stop():
     """종료 시 호출하여 자원 해제"""
     global _cam1_thread
     if _cam1_thread is not None:
-        _cam1_thread.running = False
-        _cam1_thread.join()
+        _cam1_thread.stop()
+        _cam1_thread.join(timeout=3.0)
         _cam1_thread = None
