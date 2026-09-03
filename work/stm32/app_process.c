@@ -7,10 +7,13 @@ void app_process_command(CommandType cmd){
     switch(cmd){
         case CMD_DROWSY_WARN:
             //경고 부저
+            start_buzzer();
             is_success = true;
             break;
         case CMD_DROWSY_OK:
             //경고부저 off
+            stop_buzzer();
+            is_success = true;
             break;
         case CMD_VENT_ON:
             air_con_motor_start();
