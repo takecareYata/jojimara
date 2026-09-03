@@ -45,7 +45,6 @@ extern void USART1_IRQHandler();
 extern void TIM1_UP_TIM10_IRQHandler();
 extern void _Invalid_ISR();
 
-
 //clock.c
 extern void Clock_Init();
 
@@ -63,6 +62,10 @@ extern void Buzzer_Mute();
 extern void start_buzzer();
 extern void stop_buzzer();
 
+//window_servo_motor.c
+extern void window_init();
+extern void window_close();
+extern void window_open();
 
 //timer.c
 extern void TIM1_1ms_Interrupt_Init();

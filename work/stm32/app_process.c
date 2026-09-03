@@ -21,10 +21,12 @@ void app_process_command(CommandType cmd){
             break;
         case CMD_WIN_CLOSE:
             //서보모터 창문닫기
+            window_close();
             air_purification_motor_start();
             is_success = true;
             break;
         case CMD_WIN_OPEN:
+            window_open();
             air_purification_motor_stop( );
             is_success = true;
             break;
