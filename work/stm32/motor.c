@@ -4,7 +4,7 @@
 // 에어컨:   PA6 (IN1), PA7 (IN2), PB10 (ENA -> TIM2_CH3)
 // 공기청정: PB8 (IN3), PB9 (IN4), PA1 (ENB -> TIM2_CH2)
 
-void motors_init(void)
+void motors_init()
 {
     // 1. 클럭 활성화 (GPIOA, GPIOB, TIM2)
     Macro_Set_Bit(RCC->AHB1ENR, 0); // GPIOA
@@ -55,7 +55,7 @@ void motors_init(void)
 }
 
 // [에어컨] 가동 및 정지
-void air_con_motor_start(void)
+void air_con_motor_start()
 {
     printf("6666\n");
     Macro_Clear_Bit(GPIOA->ODR, 6);   // IN1 = 0
@@ -63,7 +63,7 @@ void air_con_motor_start(void)
     TIM2->CCR3 = 1000;               
 }
 
-void air_con_motor_stop(void)
+void air_con_motor_stop()
 {
     Macro_Clear_Bit(GPIOA->ODR, 6);
     Macro_Clear_Bit(GPIOA->ODR, 7);
@@ -71,7 +71,7 @@ void air_con_motor_stop(void)
 }
 
 // [공기청정] 가동 및 정지
-void air_purification_motor_start(void)
+void air_purification_motor_start()
 {
     printf("5555\n");
     Macro_Clear_Bit(GPIOB->ODR, 8);   // IN3 = 1
@@ -79,7 +79,7 @@ void air_purification_motor_start(void)
     TIM2->CCR2 = 1000;               
 }
 
-void air_purification_motor_stop(void)
+void air_purification_motor_stop()
 {
     Macro_Clear_Bit(GPIOB->ODR, 8);
     Macro_Clear_Bit(GPIOB->ODR, 9);
