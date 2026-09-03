@@ -42,6 +42,7 @@ extern void app_process_command(CommandType cmd);
 
 //eception.c
 extern void USART1_IRQHandler();
+extern void TIM1_UP_TIM10_IRQHandler();
 extern void _Invalid_ISR();
 
 
@@ -58,8 +59,10 @@ extern void air_purification_motor_stop();
 //buzzer.c
 extern void Buzzer_Init();
 extern void Buzzer_Play(uint32_t freq_hz);
-extern void warrning_buzzer();
+extern void Buzzer_Mute();
+extern void start_buzzer();
+extern void stop_buzzer();
+
 
 //timer.c
-extern void TIM1_Delay_Init();
-extern void TIM1_Delay(int time);
+extern void TIM1_1ms_Interrupt_Init();

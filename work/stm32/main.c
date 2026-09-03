@@ -9,7 +9,7 @@ static void Sys_Init(int baud)
     Uart1_Init(baud);
     motors_init();
     Buzzer_Init();
-    TIM1_Delay_Init();
+    TIM1_1ms_Interrupt_Init();
 	setvbuf(stdout, NULL, _IONBF, 0);
 }
 
@@ -22,9 +22,6 @@ void Main(){
     Uart1_RX_Interrupt_Enable(1);
     printf("test_start\n");
     while(1){
-        warrning_buzzer();
-        TIM1_Delay(500);
-
         if(Uart_Data_In){
             printf("before[Jetson -> MCU]: %s\r\n", cmd_buf);
             app_process_command(UART_ParseCommand(cmd_buf));
