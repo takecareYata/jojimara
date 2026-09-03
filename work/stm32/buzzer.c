@@ -55,12 +55,25 @@ void Buzzer_Play(uint32_t freq_hz)
     Macro_Set_Bit(TIM3->CCER, 8);
 }
 
-void warrning_buzzer(){
-    for(int i =0; i<3; i++){
-            Buzzer_Play(3000);
-            TIM1_Delay(500);
-            Buzzer_Play(0);
-            TIM1_Delay(500);
-        }
-        
+volatile uint32_t warning_tick = 0;
+
+// 소리만 잠시 끄는 함수 (PWM OFF)
+void Buzzer_Mute()
+{
+    Macro_Clear_Bit(TIM3->CCER, 8);
+}
+
+// 경고음 완전히 시작 (명령 수신 시 1회 호출)
+void start_buzzer()
+{
+    warning_tick = 0;
+    Buzzer_Play(3000);
+    Macro_Set_Bit(TIM1->CR1, 0);     // TIM1 카운터
+}
+
+// 경고음 완전히 정지 (명령 수신 시 1회 호출)
+void stop_buzzer()
+{
+    Macro_Clear_Bit(TIM1->CR1, 0);   // TIM1 카운터 정지 (인터럽트 중단)
+    Buzzer_Mute();                   // PWM 출력 정지
 }

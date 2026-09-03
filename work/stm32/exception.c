@@ -1,5 +1,5 @@
 #include "device_driver.h"
-
+#include <stdio.h>
 void _Invalid_ISR()
 {
 	unsigned int r = Macro_Extract_Area(SCB->ICSR, 0x1ff, 0);
@@ -41,4 +41,36 @@ void USART1_IRQHandler()
     }
 
     NVIC_ClearPendingIRQ(37);
+}
+
+extern volatile uint32_t warning_tick;
+static int warning_state = 0;
+
+void TIM1_UP_TIM10_IRQHandler()
+{
+    printf("ininin\n");
+    // TIM1 업데이트 인터럽트 플래그 확인 및 클리어
+    if (Macro_Check_Bit_Set(TIM1->SR, 0))
+    {
+        Macro_Clear_Bit(TIM1->SR, 0); // 플래그를 지워야 무한 루프에 안 빠짐
+
+        warning_tick++;
+        if (warning_tick >= 250) // 250ms 주기마다 On/Off 토글
+        {
+            warning_tick = 0;    
+            warning_state ^= 1; 
+
+            if (warning_state)
+            {
+                // 소리만 잠시 끔 (TIM1 카운터는 계속 돌아야 함)
+                Buzzer_Mute(); 
+            }
+            else
+            {
+                // 소리 켬
+                Buzzer_Play(3000); // 삐- 삐- 단속음
+                
+            }
+        }
+    }
 }
