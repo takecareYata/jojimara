@@ -41,17 +41,25 @@ extern CommandType UART_ParseCommand(char *cmd);
 extern void app_process_command(CommandType cmd);
 
 //eception.c
-extern void USART1_IRQHandler(void);
-extern void _Invalid_ISR(void);
+extern void USART1_IRQHandler();
+extern void _Invalid_ISR();
 
 
 //clock.c
-extern void Clock_Init(void);
+extern void Clock_Init();
 
 //motor.c
-extern void motors_init(void);
-extern void air_con_motor_start(void);
-extern void air_con_motor_stop(void);
-extern void air_purification_motor_start(void);
-extern void air_purification_motor_stop(void);
+extern void motors_init();
+extern void air_con_motor_start();
+extern void air_con_motor_stop();
+extern void air_purification_motor_start();
+extern void air_purification_motor_stop();
 
+//buzzer.c
+extern void Buzzer_Init();
+extern void Buzzer_Play(uint32_t freq_hz);
+extern void warrning_buzzer();
+
+//timer.c
+extern void TIM1_Delay_Init();
+extern void TIM1_Delay(int time);
