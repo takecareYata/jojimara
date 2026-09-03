@@ -345,18 +345,18 @@ class Cam1Thread(threading.Thread):
                             in_left = cv2.pointPolygonTest(left_roi, vehicle_bottom_center, False) >= 0 if left_roi is not None else False
                             in_right = cv2.pointPolygonTest(right_roi, vehicle_bottom_center, False) >= 0 if right_roi is not None else False
 
-                            effective_id = track_id if track_id != -1 else f"temp_{x1}_{y1}"
                             if in_center or in_left or in_right:
+                                effective_id = track_id if track_id != -1 else f"temp_{x1}_{y1}"
                                 current_frame_roi_track_ids.add(effective_id)
-                                
-                            self.tracked_roi_vehicles[effective_id] = {
-                                "miss_count": 0,
-                                "last_box": (x1, y1, x2, y2),
-                                "last_conf": conf,
-                                "in_center": in_center,
-                                "in_left": in_left,
-                                "in_right": in_right
-                            }
+
+                                self.tracked_roi_vehicles[effective_id] = {
+                                    "miss_count": 0,
+                                    "last_box": (x1, y1, x2, y2),
+                                    "last_conf": conf,
+                                    "in_center": in_center,
+                                    "in_left": in_left,
+                                    "in_right": in_right
+                                }
 
             # [1] 터널 상태 업데이트 및 바운딩 박스 시각화
             expired_tunnel_ids = []

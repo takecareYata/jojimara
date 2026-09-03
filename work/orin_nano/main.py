@@ -32,7 +32,7 @@ from gui import Ui_MainWindow
 ROAD_CAMERA_INDEX = 2
 DRIVER_CAMERA_INDEX = 0
 
-FALLBACK_VIDEO_PATH = str(BASE_DIR / "road_rain_test.mp4")
+FALLBACK_VIDEO_PATH = str(BASE_DIR / "test_video.mp4")
 YOLO_ENGINE_PATH = str(BASE_DIR / "yolo11n.engine")
 
 # Jetson - STM32 UART 설정
