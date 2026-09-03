@@ -15,7 +15,6 @@ const CommandMap cmd_table[] = {
 };
 
 CommandType UART_ParseCommand(char *cmd) {
-    printf("1\n");
     for (int i = 0; i < CMD_TABLE_SIZE; i++) {
         if (strncmp(cmd, cmd_table[i].cmd_compare_str, cmd_table[i].length) == 0) {
             return cmd_table[i].cmd_type;

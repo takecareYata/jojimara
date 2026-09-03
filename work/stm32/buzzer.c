@@ -63,6 +63,7 @@ void Buzzer_Mute()
 {
     Macro_Clear_Bit(TIM3->CCER, 8);
 }
+
 volatile int is_bz_running_tick =0;
 
 // 경고음 완전히 시작 (명령 수신 시 1회 호출)
