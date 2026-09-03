@@ -8,7 +8,9 @@ const CommandMap cmd_table[] = {
     {"VENT_OFF",     8, CMD_VENT_OFF},
     {"WIN_CLOSE",    9, CMD_WIN_CLOSE},
     {"WIN_OPEN",     8, CMD_WIN_OPEN},
-    {"SIDE_WARN",    9, CMD_SIDE_WARN},
+    {"WARN_CENTER",    9, CMD_WARN_CENTER},
+    {"WARN_RIGHT",    9, CMD_WARN_RIGHT},
+    {"WARN_LEFT",    9, CMD_WARN_LEFT},
     {"NONE",         4, CMD_NONE}
 };
 
