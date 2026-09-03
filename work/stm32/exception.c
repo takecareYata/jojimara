@@ -1,6 +1,6 @@
 #include "device_driver.h"
 
-void _Invalid_ISR(void)
+void _Invalid_ISR()
 {
 	unsigned int r = Macro_Extract_Area(SCB->ICSR, 0x1ff, 0);
 	printf("\nInvalid_Exception: %d!\n", r);
@@ -11,7 +11,7 @@ extern char cmd_buf[64];
 extern volatile int Uart_Data_In;
 extern volatile unsigned char Uart_Data;
 
-void USART1_IRQHandler(void)
+void USART1_IRQHandler()
 {
     static int rx_idx = 0;
 
