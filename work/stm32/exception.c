@@ -7,6 +7,7 @@ void _Invalid_ISR()
 	printf("Invalid_ISR: %d!\n", r - 16);
 	for(;;);
 }
+
 extern char cmd_buf[64];
 extern volatile int Uart_Data_In;
 extern volatile unsigned char Uart_Data;
