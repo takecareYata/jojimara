@@ -19,6 +19,13 @@ CLASS_VEHICLE = 0
 CLASS_TUNNEL_ENTRANCE = 1
 CLASS_TUNNEL_EXIT = 2
 
+# 객체 라벨 이름 매핑
+CLASS_NAMES = {
+    CLASS_VEHICLE: "Vehicle",
+    CLASS_TUNNEL_ENTRANCE: "Tunnel Entrance",
+    CLASS_TUNNEL_EXIT: "Tunnel Exit"
+}
+
 
 class LaneDetector:
     """차선 검출 및 가변 ROI 계산을 담당하는 클래스"""
@@ -27,7 +34,6 @@ class LaneDetector:
         self.debug_edges_frame = None
 
     def get_default_rois(self, width, height):
-        """차선 미인식 시 사용할 기본 3분할 ROI(중앙 사다리꼴 + 좌/우 평행사변형) 생성"""
         center_pts = (DEFAULT_ROI_RATIOS * [width, height]).astype(np.int32)
         
         top_left, top_right, bot_right, bot_left = center_pts
@@ -40,7 +46,6 @@ class LaneDetector:
         y_top = top_left[1]
         y_bottom = bot_left[1]
 
-        # Left ROI (왼쪽 평행사변형)
         left_pts = np.array([
             [max(0, top_left[0] - offset_top), y_top],
             [top_left[0], y_top],
@@ -48,7 +53,6 @@ class LaneDetector:
             [max(0, bot_left[0] - offset_bot), y_bottom]
         ], np.int32)
 
-        # Right ROI (오른쪽 평행사변형)
         right_pts = np.array([
             [top_right[0], y_top],
             [min(width, top_right[0] + offset_top), y_top],
@@ -63,12 +67,10 @@ class LaneDetector:
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
-        # 흰색 차선 범위
         lower_white = np.array([0, 0, 130])
         upper_white = np.array([180, 50, 255])
         mask_white = cv2.inRange(hsv, lower_white, upper_white)
 
-        # 노란색 차선 범위
         lower_yellow = np.array([12, 40, 80])
         upper_yellow = np.array([32, 255, 255])
         mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
@@ -80,7 +82,6 @@ class LaneDetector:
         edges = cv2.Canny(blur, 50, 150)
         combined = cv2.bitwise_and(edges, color_mask)
 
-        # 차선 탐색 영역(Search ROI) 설정
         search_roi_pts = np.array([
             [int(w * 0.05), int(h * 0.98)],
             [int(w * 0.20), int(h * 0.55)],
@@ -123,7 +124,6 @@ class LaneDetector:
         curr_il_slope, curr_il_b = np.mean(left_slopes), np.mean(left_bs)
         curr_ir_slope, curr_ir_b = np.mean(right_slopes), np.mean(right_bs)
 
-        # 지수 이동 평균(EMA)을 활용한 보정
         if self.prev_slopes_bs is None:
             il_slope, il_b, ir_slope, ir_b = curr_il_slope, curr_il_b, curr_ir_slope, curr_ir_b
         else:
@@ -143,14 +143,12 @@ class LaneDetector:
             x_ir_top = int((y_top - ir_b) / ir_slope)
             x_ir_bot = int((y_bottom - ir_b) / ir_slope)
 
-            # 최소 차선 폭 보정
             min_lane_width_top = int(w * 0.15)
             if (x_ir_top - x_il_top) < min_lane_width_top:
                 center_x = (x_il_top + x_ir_top) // 2
                 x_il_top = center_x - (min_lane_width_top // 2)
                 x_ir_top = center_x + (min_lane_width_top // 2)
 
-            # [각 꼭짓점별 개별 제한 적용] DEFAULT_ROI_RATIOS 영역 초과 방지
             def_tl_x = int(DEFAULT_ROI_RATIOS[0, 0] * w)
             def_tr_x = int(DEFAULT_ROI_RATIOS[1, 0] * w)
             def_br_x = int(DEFAULT_ROI_RATIOS[2, 0] * w)
@@ -161,7 +159,6 @@ class LaneDetector:
             x_ir_bot = min(x_ir_bot, def_br_x)
             x_il_bot = max(x_il_bot, def_bl_x)
 
-            # 유효성 검사
             edge_margin = int(w * 0.05)
             if (x_il_top <= edge_margin or x_il_top >= w - edge_margin or
                 x_ir_top <= edge_margin or x_ir_top >= w - edge_margin or
@@ -231,7 +228,6 @@ class Cam1Thread(threading.Thread):
         self.processed_frame = None
         self.debug_frame = None
         
-        # 영역별 개별 경고 플래그
         self.warning_left = False
         self.warning_center = False
         self.warning_right = False
@@ -245,13 +241,20 @@ class Cam1Thread(threading.Thread):
         self.lane_detector = LaneDetector()
 
     def stop(self):
-        """Cam1 처리 스레드의 종료를 요청한다."""
         self.running = False
         self.stop_event.set()
 
+    def draw_bbox(self, frame, box, label, color, thickness=2):
+        """사각 프레임과 라벨을 시각화하는 헬퍼 함수"""
+        x1, y1, x2, y2 = box
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+        
+        # 라벨 배경 및 텍스트 표시
+        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(frame, (x1, max(0, y1 - h - 6)), (x1 + w + 4, max(h + 6, y1)), color, -1)
+        cv2.putText(frame, label, (x1 + 2, max(h + 2, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
     def run(self):
-        # 카메라 연결을 먼저 확인하여, 카메라가 없을 때 TensorRT 엔진을
-        # 불필요하게 로드하지 않도록 한다.
         cap = cv2.VideoCapture(self.cam_id, cv2.CAP_V4L2)
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM1_FRAME_WIDTH)
@@ -338,68 +341,81 @@ class Cam1Thread(threading.Thread):
                         elif cls_id == CLASS_VEHICLE:
                             vehicle_bottom_center = (int((x1 + x2) / 2), y2)
 
-                            # 세 영역에 대해 개별 침범 여부 판단
                             in_center = cv2.pointPolygonTest(center_roi, vehicle_bottom_center, False) >= 0
                             in_left = cv2.pointPolygonTest(left_roi, vehicle_bottom_center, False) >= 0 if left_roi is not None else False
                             in_right = cv2.pointPolygonTest(right_roi, vehicle_bottom_center, False) >= 0 if right_roi is not None else False
 
+                            effective_id = track_id if track_id != -1 else f"temp_{x1}_{y1}"
                             if in_center or in_left or in_right:
-                                effective_id = track_id if track_id != -1 else f"temp_{x1}_{y1}"
                                 current_frame_roi_track_ids.add(effective_id)
                                 
-                                self.tracked_roi_vehicles[effective_id] = {
-                                    "miss_count": 0,
-                                    "last_box": (x1, y1, x2, y2),
-                                    "last_conf": conf,
-                                    "in_center": in_center,
-                                    "in_left": in_left,
-                                    "in_right": in_right
-                                }
+                            self.tracked_roi_vehicles[effective_id] = {
+                                "miss_count": 0,
+                                "last_box": (x1, y1, x2, y2),
+                                "last_conf": conf,
+                                "in_center": in_center,
+                                "in_left": in_left,
+                                "in_right": in_right
+                            }
 
-            # [1] 터널 상태 업데이트
+            # [1] 터널 상태 업데이트 및 바운딩 박스 시각화
             expired_tunnel_ids = []
             has_entrance = False
             has_exit = False
 
             for track_id, info in self.tracked_tunnels.items():
                 cls_id = info["cls_id"]
+                box = info["last_box"]
+                conf = info["last_conf"]
+
                 if track_id in current_frame_tunnel_track_ids:
-                    if cls_id == CLASS_TUNNEL_ENTRANCE:
-                        has_entrance = True
-                    elif cls_id == CLASS_TUNNEL_EXIT:
-                        has_exit = True
+                    info["miss_count"] = 0
                 else:
                     info["miss_count"] += 1
-                    if info["miss_count"] <= self.MAX_MISS_TUNNEL:
-                        if cls_id == CLASS_TUNNEL_ENTRANCE:
-                            has_entrance = True
-                        elif cls_id == CLASS_TUNNEL_EXIT:
-                            has_exit = True
+
+                if info["miss_count"] <= self.MAX_MISS_TUNNEL:
+                    if cls_id == CLASS_TUNNEL_ENTRANCE:
+                        has_entrance = True
+                        color = (0, 165, 255)  # 주황색 (입구)
                     else:
-                        expired_tunnel_ids.append(track_id)
+                        has_exit = True
+                        color = (255, 255, 0)  # 하늘색 (출구)
+                    
+                    label_text = f"{CLASS_NAMES.get(cls_id, 'Tunnel')} {conf:.2f}"
+                    self.draw_bbox(display_frame, box, label_text, color)
+                else:
+                    expired_tunnel_ids.append(track_id)
 
             for track_id in expired_tunnel_ids:
                 del self.tracked_tunnels[track_id]
 
-            # [2] 차량 상태 업데이트 및 영역별 경고 집계
+            # [2] 차량 상태 업데이트 및 바운딩 박스 시각화
             expired_vehicle_ids = []
             flag_left = False
             flag_center = False
             flag_right = False
 
             for track_id, info in self.tracked_roi_vehicles.items():
+                box = info["last_box"]
+                conf = info["last_conf"]
+
                 if track_id in current_frame_roi_track_ids:
+                    info["miss_count"] = 0
+                else:
+                    info["miss_count"] += 1
+
+                if info["miss_count"] <= self.MAX_MISS_VEHICLE:
+                    in_danger = info["in_left"] or info["in_center"] or info["in_right"]
                     if info["in_left"]: flag_left = True
                     if info["in_center"]: flag_center = True
                     if info["in_right"]: flag_right = True
+
+                    # 침범 시 빨간색 사각형, 일반 차량은 파란색 사각형
+                    color = (0, 0, 255) if in_danger else (255, 100, 0)
+                    label_text = f"Vehicle {conf:.2f}"
+                    self.draw_bbox(display_frame, box, label_text, color)
                 else:
-                    info["miss_count"] += 1
-                    if info["miss_count"] <= self.MAX_MISS_VEHICLE:
-                        if info["in_left"]: flag_left = True
-                        if info["in_center"]: flag_center = True
-                        if info["in_right"]: flag_right = True
-                    else:
-                        expired_vehicle_ids.append(track_id)
+                    expired_vehicle_ids.append(track_id)
 
             for track_id in expired_vehicle_ids:
                 del self.tracked_roi_vehicles[track_id]
@@ -432,23 +448,15 @@ class Cam1Thread(threading.Thread):
         self.running = False
 
 
-# Global 스레드 객체
 _cam1_thread = None
 
-
-# =========================================================
-# [PUBLIC FUNCTIONS]
-# =========================================================
-
 def cam1_start(cam_id=2, engine_path="yolo11n.engine"):
-    """스레드를 개시할 때 호출"""
     global _cam1_thread
     if _cam1_thread is None or not _cam1_thread.is_alive():
         _cam1_thread = Cam1Thread(cam_id=cam_id, engine_path=engine_path)
         _cam1_thread.start()
 
 def cam1_get_frame(include_debug=True):
-    """도로 프레임을 가져올 때 호출"""
     if _cam1_thread is None:
         return None, None
     with _cam1_thread.lock:
@@ -461,7 +469,6 @@ def cam1_get_frame(include_debug=True):
         return main_f, debug_f
 
 def cam1_get_status():
-    """감지 상태 정보를 가져올 때 호출"""
     if _cam1_thread is None:
         return {
             "roi_warning": False,
@@ -482,7 +489,6 @@ def cam1_get_status():
         }
 
 def cam1_stop():
-    """종료 시 호출하여 자원 해제"""
     global _cam1_thread
     if _cam1_thread is not None:
         _cam1_thread.stop()

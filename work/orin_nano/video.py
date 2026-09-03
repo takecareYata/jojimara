@@ -16,10 +16,15 @@ CLASS_VEHICLE = 0
 CLASS_TUNNEL_ENTRANCE = 1
 CLASS_TUNNEL_EXIT = 2
 
-# 테스트 영상 처리 해상도와 실시간 재생 보정값
 VIDEO_PROCESS_WIDTH = 1280
 VIDEO_PROCESS_HEIGHT = 720
 MAX_REALTIME_FRAME_SKIP = 5
+
+CLASS_NAMES = {
+    CLASS_VEHICLE: "Vehicle",
+    CLASS_TUNNEL_ENTRANCE: "Tunnel Entrance",
+    CLASS_TUNNEL_EXIT: "Tunnel Exit"
+}
 
 
 class LaneDetector:
@@ -29,10 +34,8 @@ class LaneDetector:
         self.debug_edges_frame = None
 
     def get_default_rois(self, width, height):
-        """차선 미인식 시 사용할 기본 3분할 ROI(중앙 사다리꼴 + 좌/우 평행사변형) 생성"""
         center_pts = (DEFAULT_ROI_RATIOS * [width, height]).astype(np.int32)
         
-        # Center ROI 상단/하단 폭 계산
         top_left, top_right, bot_right, bot_left = center_pts
         lane_width_top = top_right[0] - top_left[0]
         lane_width_bot = bot_right[0] - bot_left[0]
@@ -43,7 +46,6 @@ class LaneDetector:
         y_top = top_left[1]
         y_bottom = bot_left[1]
 
-        # Left ROI (왼쪽 평행사변형)
         left_pts = np.array([
             [max(0, top_left[0] - offset_top), y_top],
             [top_left[0], y_top],
@@ -51,7 +53,6 @@ class LaneDetector:
             [max(0, bot_left[0] - offset_bot), y_bottom]
         ], np.int32)
 
-        # Right ROI (오른쪽 평행사변형)
         right_pts = np.array([
             [top_right[0], y_top],
             [min(width, top_right[0] + offset_top), y_top],
@@ -66,12 +67,10 @@ class LaneDetector:
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
-        # 흰색 차선 범위
         lower_white = np.array([0, 0, 130])
         upper_white = np.array([180, 50, 255])
         mask_white = cv2.inRange(hsv, lower_white, upper_white)
 
-        # 노란색 차선 범위
         lower_yellow = np.array([12, 40, 80])
         upper_yellow = np.array([32, 255, 255])
         mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
@@ -84,7 +83,6 @@ class LaneDetector:
         edges = cv2.Canny(blur, 50, 150)
         combined = cv2.bitwise_and(edges, color_mask)
 
-        # 차선 탐색 영역(Search ROI) 설정
         search_roi_pts = np.array([
             [int(w * 0.05), int(h * 0.98)],
             [int(w * 0.20), int(h * 0.55)],
@@ -98,7 +96,6 @@ class LaneDetector:
         
         self.debug_edges_frame = masked_edges.copy()
 
-        # 허프 변환을 통한 직선 검출
         lines = cv2.HoughLinesP(masked_edges, 1, np.pi / 180, threshold=25, minLineLength=25, maxLineGap=110)
 
         if lines is None:
@@ -129,7 +126,6 @@ class LaneDetector:
         curr_il_slope, curr_il_b = np.mean(left_slopes), np.mean(left_bs)
         curr_ir_slope, curr_ir_b = np.mean(right_slopes), np.mean(right_bs)
 
-        # 지수 이동 평균(EMA)을 활용한 보정
         if self.prev_slopes_bs is None:
             il_slope, il_b, ir_slope, ir_b = curr_il_slope, curr_il_b, curr_ir_slope, curr_ir_b
         else:
@@ -149,36 +145,22 @@ class LaneDetector:
             x_ir_top = int((y_top - ir_b) / ir_slope)
             x_ir_bot = int((y_bottom - ir_b) / ir_slope)
 
-            # 최소 차선 폭 보정
             min_lane_width_top = int(w * 0.15)
             if (x_ir_top - x_il_top) < min_lane_width_top:
                 center_x = (x_il_top + x_ir_top) // 2
                 x_il_top = center_x - (min_lane_width_top // 2)
                 x_ir_top = center_x + (min_lane_width_top // 2)
 
-            # =========================================================================
-            # [각 꼭짓점별 개별 제한 적용] DEFAULT_ROI_RATIOS 영역 초과 방지
-            # =========================================================================
-            # DEFAULT_ROI_RATIOS의 각 꼭짓점 X 좌표 (픽셀 단위)
-            def_tl_x = int(DEFAULT_ROI_RATIOS[0, 0] * w)  # Top-Left  (0.32 * w)
-            def_tr_x = int(DEFAULT_ROI_RATIOS[1, 0] * w)  # Top-Right (0.68 * w)
-            def_br_x = int(DEFAULT_ROI_RATIOS[2, 0] * w)  # Bottom-Right (0.70 * w)
-            def_bl_x = int(DEFAULT_ROI_RATIOS[3, 0] * w)  # Bottom-Left  (0.30 * w)
+            def_tl_x = int(DEFAULT_ROI_RATIOS[0, 0] * w)
+            def_tr_x = int(DEFAULT_ROI_RATIOS[1, 0] * w)
+            def_br_x = int(DEFAULT_ROI_RATIOS[2, 0] * w)
+            def_bl_x = int(DEFAULT_ROI_RATIOS[3, 0] * w)
 
-            # 1. Top-Left: 기본 설정보다 더 왼쪽으로 벌어지는 것을 방지 (x >= def_tl_x)
             x_il_top = max(x_il_top, def_tl_x)
-
-            # 2. Top-Right: 기본 설정보다 더 오른쪽으로 벌어지는 것을 방지 (x <= def_tr_x)
             x_ir_top = min(x_ir_top, def_tr_x)
-
-            # 3. Bottom-Right: 기본 설정보다 더 오른쪽으로 벌어지는 것을 방지 (x <= def_br_x)
             x_ir_bot = min(x_ir_bot, def_br_x)
-
-            # 4. Bottom-Left: 기본 설정보다 더 왼쪽으로 벌어지는 것을 방지 (x >= def_bl_x)
             x_il_bot = max(x_il_bot, def_bl_x)
-            # =========================================================================
 
-            # 유효성 검사 (화면 가장자리 마진 및 좌/우 교차 방지)
             edge_margin = int(w * 0.05)
             if (x_il_top <= edge_margin or x_il_top >= w - edge_margin or
                 x_ir_top <= edge_margin or x_ir_top >= w - edge_margin or
@@ -253,7 +235,6 @@ class VideoProcessingThread(threading.Thread):
         self.processed_frame = None
         self.debug_frame = None
         
-        # 영역별 개별 경고 플래그
         self.warning_left = False
         self.warning_center = False
         self.warning_right = False
@@ -266,15 +247,22 @@ class VideoProcessingThread(threading.Thread):
         self.lane_detector = LaneDetector()
 
     def _reset_tracking(self):
-        """영상 위치 이동 또는 반복 재생 시 이전 추적 정보를 초기화한다."""
         self.tracked_roi_vehicles.clear()
         self.tracked_tunnels.clear()
         self.lane_detector.reset()
 
     def stop(self):
-        """영상 처리 스레드의 종료를 요청한다."""
         self.running = False
         self.stop_event.set()
+
+    def draw_bbox(self, frame, box, label, color, thickness=2):
+        """사각 프레임과 라벨을 시각화하는 헬퍼 함수"""
+        x1, y1, x2, y2 = box
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+        
+        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(frame, (x1, max(0, y1 - h - 6)), (x1 + w + 4, max(h + 6, y1)), color, -1)
+        cv2.putText(frame, label, (x1 + 2, max(h + 2, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     def run(self):
         try:
@@ -309,7 +297,6 @@ class VideoProcessingThread(threading.Thread):
         self.running = True
 
         while self.running and not self.stop_event.is_set():
-            # GUI에서 전달한 키 제어 값을 안전하게 가져온다.
             with self.lock:
                 seek_offset = self.seek_offset
                 self.seek_offset = 0
@@ -340,7 +327,6 @@ class VideoProcessingThread(threading.Thread):
                 next_frame_time = time.monotonic()
                 continue
 
-            # 원본 영상이 고해상도여도 처리량이 지나치게 커지지 않게 제한한다.
             if frame.shape[1] != VIDEO_PROCESS_WIDTH or frame.shape[0] != VIDEO_PROCESS_HEIGHT:
                 frame = cv2.resize(
                     frame,
@@ -356,7 +342,6 @@ class VideoProcessingThread(threading.Thread):
                 center_roi, left_roi, right_roi = rois
                 is_lane_detected = True
             else:
-                # 차선 인식 실패 시 기본 사다리꼴을 3분할하여 좌/우/중앙 ROI 생성
                 center_roi, left_roi, right_roi = self.lane_detector.get_default_rois(width, height)
                 is_lane_detected = False
 
@@ -402,83 +387,92 @@ class VideoProcessingThread(threading.Thread):
                         elif cls_id == CLASS_VEHICLE:
                             vehicle_bottom_center = (int((x1 + x2) / 2), y2)
 
-                            # 세 영역에 대해 개별 침범 여부 판단
                             in_center = cv2.pointPolygonTest(center_roi, vehicle_bottom_center, False) >= 0
                             in_left = cv2.pointPolygonTest(left_roi, vehicle_bottom_center, False) >= 0 if left_roi is not None else False
                             in_right = cv2.pointPolygonTest(right_roi, vehicle_bottom_center, False) >= 0 if right_roi is not None else False
 
+                            effective_id = track_id if track_id != -1 else f"temp_{x1}_{y1}"
                             if in_center or in_left or in_right:
-                                effective_id = track_id if track_id != -1 else f"temp_{x1}_{y1}"
                                 current_frame_roi_track_ids.add(effective_id)
                                 
-                                self.tracked_roi_vehicles[effective_id] = {
-                                    "miss_count": 0,
-                                    "last_box": (x1, y1, x2, y2),
-                                    "last_conf": conf,
-                                    "in_center": in_center,
-                                    "in_left": in_left,
-                                    "in_right": in_right
-                                }
+                            self.tracked_roi_vehicles[effective_id] = {
+                                "miss_count": 0,
+                                "last_box": (x1, y1, x2, y2),
+                                "last_conf": conf,
+                                "in_center": in_center,
+                                "in_left": in_left,
+                                "in_right": in_right
+                            }
 
+            # [1] 터널 상태 업데이트 및 바운딩 박스 시각화
             expired_tunnel_ids = []
             has_entrance = False
             has_exit = False
 
-            # [1] 터널 상태 업데이트
             for track_id, info in self.tracked_tunnels.items():
                 cls_id = info["cls_id"]
+                box = info["last_box"]
+                conf = info["last_conf"]
+
                 if track_id in current_frame_tunnel_track_ids:
-                    if cls_id == CLASS_TUNNEL_ENTRANCE:
-                        has_entrance = True
-                    elif cls_id == CLASS_TUNNEL_EXIT:
-                        has_exit = True
+                    info["miss_count"] = 0
                 else:
                     info["miss_count"] += 1
-                    if info["miss_count"] <= self.MAX_MISS_TUNNEL:
-                        if cls_id == CLASS_TUNNEL_ENTRANCE:
-                            has_entrance = True
-                        elif cls_id == CLASS_TUNNEL_EXIT:
-                            has_exit = True
+
+                if info["miss_count"] <= self.MAX_MISS_TUNNEL:
+                    if cls_id == CLASS_TUNNEL_ENTRANCE:
+                        has_entrance = True
+                        color = (0, 165, 255)  # 주황색 (입구)
                     else:
-                        expired_tunnel_ids.append(track_id)
+                        has_exit = True
+                        color = (255, 255, 0)  # 하늘색 (출구)
+                    
+                    label_text = f"{CLASS_NAMES.get(cls_id, 'Tunnel')} {conf:.2f}"
+                    self.draw_bbox(display_frame, box, label_text, color)
+                else:
+                    expired_tunnel_ids.append(track_id)
 
             for track_id in expired_tunnel_ids:
                 del self.tracked_tunnels[track_id]
 
-            # [2] 차량 상태 업데이트 및 영역별 경고 집계
+            # [2] 차량 상태 업데이트 및 바운딩 박스 시각화
             expired_vehicle_ids = []
             flag_left = False
             flag_center = False
             flag_right = False
 
             for track_id, info in self.tracked_roi_vehicles.items():
+                box = info["last_box"]
+                conf = info["last_conf"]
+
                 if track_id in current_frame_roi_track_ids:
+                    info["miss_count"] = 0
+                else:
+                    info["miss_count"] += 1
+
+                if info["miss_count"] <= self.MAX_MISS_VEHICLE:
+                    in_danger = info["in_left"] or info["in_center"] or info["in_right"]
                     if info["in_left"]: flag_left = True
                     if info["in_center"]: flag_center = True
                     if info["in_right"]: flag_right = True
+
+                    color = (0, 0, 255) if in_danger else (255, 100, 0)
+                    label_text = f"Vehicle {conf:.2f}"
+                    self.draw_bbox(display_frame, box, label_text, color)
                 else:
-                    info["miss_count"] += 1
-                    if info["miss_count"] <= self.MAX_MISS_VEHICLE:
-                        if info["in_left"]: flag_left = True
-                        if info["in_center"]: flag_center = True
-                        if info["in_right"]: flag_right = True
-                    else:
-                        expired_vehicle_ids.append(track_id)
+                    expired_vehicle_ids.append(track_id)
 
             for track_id in expired_vehicle_ids:
                 del self.tracked_roi_vehicles[track_id]
 
-            # [3] ROI 영역별 시각화 (경고 발생 시 빨간색, 정상 시 원래 색상)
-            # Center ROI (가운데 사다리꼴)
+            # [3] ROI 영역별 시각화
             color_center = (0, 0, 255) if flag_center else ((0, 255, 0) if is_lane_detected else (255, 255, 0))
             cv2.polylines(display_frame, [center_roi], isClosed=True, color=color_center, thickness=2)
 
-            # Left ROI (왼쪽 평행사변형)
             if left_roi is not None:
                 color_left = (0, 0, 255) if flag_left else (255, 200, 0)
                 cv2.polylines(display_frame, [left_roi], isClosed=True, color=color_left, thickness=1 if not flag_left else 2)
 
-            # Right ROI (오른쪽 평행사변형)
             if right_roi is not None:
                 color_right = (0, 0, 255) if flag_right else (255, 200, 0)
                 cv2.polylines(display_frame, [right_roi], isClosed=True, color=color_right, thickness=1 if not flag_right else 2)
@@ -491,7 +485,6 @@ class VideoProcessingThread(threading.Thread):
                 self.processed_frame = display_frame
                 self.debug_frame = self.lane_detector.debug_edges_frame
                 
-                # 좌/우/중앙 개별 경고 전달
                 self.warning_left = flag_left
                 self.warning_center = flag_center
                 self.warning_right = flag_right
@@ -500,11 +493,9 @@ class VideoProcessingThread(threading.Thread):
                 self.tunnel_exit_detected = has_exit
 
             if is_paused:
-                # 일시정지 중 한 프레임 처리 후 다시 대기한다.
                 next_frame_time = time.monotonic()
                 continue
 
-            # 원본 FPS에 맞춰 재생하고, 추론이 늦으면 지연 프레임을 건너뛴다.
             next_frame_time += frame_interval
             remaining = next_frame_time - time.monotonic()
 
@@ -537,7 +528,6 @@ class VideoProcessingThread(threading.Thread):
         self.running = False
 
 
-# Global thread handle
 _video_thread = None
 
 def video_start(video_path="test_video.mp4", engine_path="yolo11n.engine"):
@@ -586,11 +576,9 @@ def video_seek(frames):
     if _video_thread is not None:
         with _video_thread.lock:
             _video_thread.seek_offset += int(frames)
-            # 일시정지 중에도 이동한 위치의 화면을 즉시 한 장 표시한다.
             _video_thread.step_frame = True
 
 def video_seek_seconds(seconds):
-    """영상 FPS를 기준으로 지정한 초만큼 앞뒤로 이동한다."""
     if _video_thread is not None:
         with _video_thread.lock:
             frame_offset = int(round(float(seconds) * _video_thread.source_fps))
