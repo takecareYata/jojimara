@@ -33,9 +33,12 @@
 | Cam 2 | `VENT_ON` | 에어컨 요청 (하품 감지) | 에어컨 모터 정방향 구동( 10초만 작동 후 정지 )  |
 | Cam 1 | `WIN_CLOSE` | 창문 닫기 (터널 진입) | 창문(서보모터 정방향), 공기청정모터 정방향 구동 (`IN1=HIGH, IN2=LOW`) |
 | Cam 1 | `WIN_OPEN` | 창문 열기 (터널 탈출) | 창문(서보모터 역방향), 공기청정모터 정지 |
-| Cam 1 | `WARN_CENTER` | 앞차 근접 경고 | 경고 LED 토글(`미정`100ms 단발성 비프음 1회 출력) |
-| Cam 1 | `WARN_RIGHT` | 오른쪽 차선 근접 경고 | 경고 LED 토글(`미정`100ms 단발성 비프음 1회 출력) |
-| Cam 1 | `WARN_LEFT` | 왼쪽 차선 근접 경고 | 경고 LED 토글(`미정`100ms 단발성 비프음 1회 출력) |
+| Cam 1 | `WARN_CENTER` | 앞차 근접 경고 | 경고 LED 토글 |
+| Cam 1 | `CENTER_OK` | 앞차 경고 해제 | 경고 LED off |
+| Cam 1 | `WARN_RIGHT` | 오른쪽 차선 근접 경고 | 경고 LED 토글 |
+| Cam 1 | `RIGHT_OK` | 오른쪽 차선 경고 해제 | 경고 LED off |
+| Cam 1 | `WARN_LEFT` | 왼쪽 차선 근접 경고 | 경고 LED 토글 |
+| Cam 1 | `LEFT_OK` | 왼쪽 차선 경고 해제 | 경고 LED off |
 
 ---
 
