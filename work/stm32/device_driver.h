@@ -26,7 +26,10 @@ typedef enum {
     CMD_WIN_OPEN,
     CMD_WARN_CENTER,
     CMD_WARN_RIGHT,
-    CMD_WARN_LEFT
+    CMD_WARN_LEFT,
+    CMD_CENTOR_OK,
+    CMD_RIGHT_OK,
+    CMD_LEFT_OK
 } CommandType;
 
 typedef struct {
