@@ -11,11 +11,13 @@ const CommandMap cmd_table[] = {
     {"WARN_CENTER",    11, CMD_WARN_CENTER},
     {"WARN_RIGHT",    10, CMD_WARN_RIGHT},
     {"WARN_LEFT",    9, CMD_WARN_LEFT},
+    {"CENTOR_OK",    9, CMD_CENTOR_OK},
+    {"RIGHT_OK",    8, CMD_RIGHT_OK},
+    {"LEFT_OK",    7, CMD_LEFT_OK},
     {"NONE",         4, CMD_NONE}
 };
 
 CommandType UART_ParseCommand(char *cmd) {
-    printf("1\n");
     for (int i = 0; i < CMD_TABLE_SIZE; i++) {
         if (strncmp(cmd, cmd_table[i].cmd_compare_str, cmd_table[i].length) == 0) {
             return cmd_table[i].cmd_type;

@@ -60,7 +60,6 @@ volatile int is_ac_running_tick = 0;
 // [에어컨] 가동 및 정지
 void air_con_motor_start()
 {
-    printf("6666\n");
     Macro_Clear_Bit(GPIOA->ODR, 6);   // IN1 = 0
     Macro_Set_Bit(GPIOA->ODR, 7); // IN2 = 1
     is_ac_running_tick = 1;
@@ -89,7 +88,6 @@ void air_con_running_interrupt(){
 // [공기청정] 가동 및 정지
 void air_purification_motor_start()
 {
-    printf("5555\n");
     Macro_Clear_Bit(GPIOB->ODR, 8);   // IN3 = 1
     Macro_Set_Bit(GPIOB->ODR, 9); // IN4 = 0
     TIM2->CCR2 = 1000;               
