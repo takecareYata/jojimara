@@ -20,17 +20,17 @@ volatile LED_STATE target_led = NONE;
 static volatile int led_count = 0;
 
 void led_center_off(){
-    Macro_Clear_Bit(target_led, 0);
+    target_led &= ~CENTER;
     Macro_Clear_Bit(GPIOC->ODR, 8);
 }
 
 void led_right_off(){
-    Macro_Clear_Bit(target_led, 1);
+    target_led &= ~RIGHT;
     Macro_Clear_Bit(GPIOC->ODR, 5);
 }
 
 void led_left_off(){
-    Macro_Clear_Bit(target_led, 2);
+    target_led &= ~LEFT;
     Macro_Clear_Bit(GPIOC->ODR, 6);
 }
 
