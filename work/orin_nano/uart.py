@@ -18,7 +18,10 @@ VALID_COMMANDS = {
     "SIDE_WARN",
     "WARN_CENTER",
     "WARN_LEFT",
-    "WARN_RIGHT"
+    "WARN_RIGHT",
+    "CENTER_OK",
+    "RIGHT_OK",
+    "LEFT_OK",
 }
 
 

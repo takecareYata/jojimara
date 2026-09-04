@@ -163,6 +163,9 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
 
     def _reset_detection_states(self):
         """영상 시크/이동 시 중복 명령 및 판단 오류 방지를 위한 상태 초기화"""
+        # 영상 위치가 크게 바뀌면 이전 장면에서 켜진 차량 경고 LED를 먼저 끈다.
+        self._clear_vehicle_warnings()
+
         self.previous_roi_left = False
         self.previous_roi_center = False
         self.previous_roi_right = False
@@ -170,6 +173,21 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         self.exit_tracking_active = False
         self.last_exit_seen_time = None
         self.exit_open_sent = False
+
+    def _clear_vehicle_warnings(self):
+        """현재 켜져 있는 방향별 차량 경고 LED에만 해제 명령을 보낸다."""
+        if self.previous_roi_left:
+            self.uart.send_command("LEFT_OK")
+
+        if self.previous_roi_center:
+            self.uart.send_command("CENTER_OK")
+
+        if self.previous_roi_right:
+            self.uart.send_command("RIGHT_OK")
+
+        self.previous_roi_left = False
+        self.previous_roi_center = False
+        self.previous_roi_right = False
 
     def setup_video_shortcuts(self):
         """하위 위젯의 포커스와 관계없이 동작하는 영상 단축키를 만든다."""
@@ -198,7 +216,6 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
         """일시정지된 테스트 영상을 한 프레임 진행한다."""
         if self.using_video_fallback:
             video.video_step_frame()
-            self._reset_detection_states()
 
     def seek_video(self, seconds):
         """테스트 영상을 지정한 초만큼 이동한다."""
@@ -244,13 +261,23 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
                 2,
             )
 
-        # 2. UART 전송 Edge Trigger (각 영역별 상태가 False -> True로 변할 때만 명령 전송)
+        # 2. UART 상태 변화 전송
+        # cam1.py와 video.py에서 20프레임 미검출 유지 처리를 하므로,
+        # 여기서는 안정화된 상태가 바뀌는 순간에만 ON/OFF 명령을 한 번 전송한다.
         if warn_left and not self.previous_roi_left:
             self.uart.send_command("WARN_LEFT")
+        elif not warn_left and self.previous_roi_left:
+            self.uart.send_command("LEFT_OK")
+
         if warn_center and not self.previous_roi_center:
             self.uart.send_command("WARN_CENTER")
+        elif not warn_center and self.previous_roi_center:
+            self.uart.send_command("CENTER_OK")
+
         if warn_right and not self.previous_roi_right:
             self.uart.send_command("WARN_RIGHT")
+        elif not warn_right and self.previous_roi_right:
+            self.uart.send_command("RIGHT_OK")
 
         # 이전 ROI 상태 갱신
         self.previous_roi_left = warn_left
@@ -373,6 +400,9 @@ class DriverMonitoringSystem(QMainWindow, Ui_MainWindow):
     def closeEvent(self, event):
         self.drowsy_alarm_running = False
         self.timer.stop()
+
+        # UART 연결을 닫기 전에 현재 켜진 차량 경고 LED를 끈다.
+        self._clear_vehicle_warnings()
 
         cam1.cam1_stop()
         if self.using_video_fallback:
