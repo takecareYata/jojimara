@@ -17,26 +17,28 @@ void led_init(){
 }
 
 volatile LED_STATE target_led = NONE;
-static LED_STATE prev_led = NONE;
 static volatile int led_count = 0;
 
-void led_all_off() {
-    Macro_Clear_Bit(GPIOC->ODR, 5);
-    Macro_Clear_Bit(GPIOC->ODR, 6);
+void led_center_off(){
+    target_led &= ~CENTER;
     Macro_Clear_Bit(GPIOC->ODR, 8);
 }
 
+void led_right_off(){
+    target_led &= ~RIGHT;
+    Macro_Clear_Bit(GPIOC->ODR, 5);
+}
+
+void led_left_off(){
+    target_led &= ~LEFT;
+    Macro_Clear_Bit(GPIOC->ODR, 6);
+}
+
 void set_led_warning(LED_STATE led_state){
-    target_led = led_state;
+    target_led |= led_state;
 }
 
 void led_interrupt(){
-    // 모드가 바뀌면 기존 핀들을 끄고 카운터 리셋
-    if (prev_led != target_led) {
-        led_all_off();
-        led_count = 0;
-        prev_led = target_led;
-    }
 
     if (target_led == NONE) {
         return;
@@ -46,18 +48,8 @@ void led_interrupt(){
     if (led_count >= 250) { // 250ms 주기
         led_count = 0;
 
-        switch (target_led) {
-            case CENTER: // PC8
-                Macro_Invert_Bit(GPIOC->ODR, 8);
-                break;
-            case LEFT:   // PC6
-                Macro_Invert_Bit(GPIOC->ODR, 6);
-                break;
-            case RIGHT:  // PC5
-                Macro_Invert_Bit(GPIOC->ODR, 5);
-                break;
-            default:
-                break;
-        }
+        if (target_led & CENTER) Macro_Invert_Bit(GPIOC->ODR, 8);
+        if (target_led & LEFT)   Macro_Invert_Bit(GPIOC->ODR, 6);
+        if (target_led & RIGHT)  Macro_Invert_Bit(GPIOC->ODR, 5);
     }
 }

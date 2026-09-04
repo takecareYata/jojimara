@@ -80,13 +80,15 @@ extern void TIM1_1ms_Interrupt_Init();
 //led.c
 
 typedef enum {
-   CENTER,
-   RIGHT,
-   LEFT,
-   NONE
+   CENTER = (1 << 0),
+   RIGHT = (1 << 1),
+   LEFT = (1 << 2),
+   NONE = 0
 } LED_STATE;
 
 extern void led_init();
-extern void led_all_off();
+extern void led_center_off();
+extern void led_right_off();
+extern void led_left_off();
 extern void led_interrupt();
 extern void set_led_warning(LED_STATE led_state);

@@ -11,6 +11,9 @@ void app_process_command(CommandType cmd){
         case CMD_WARN_CENTER: set_led_warning(CENTER); break;
         case CMD_WARN_RIGHT: set_led_warning(RIGHT); break;
         case CMD_WARN_LEFT: set_led_warning(LEFT); break;
+        case CMD_CENTOR_OK: led_center_off(); break;
+        case CMD_RIGHT_OK: led_right_off(); break;
+        case CMD_LEFT_OK: led_left_off(); break;
         case CMD_WIN_CLOSE:
             window_close();
             air_purification_motor_start();
