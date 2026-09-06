@@ -33,7 +33,7 @@ void Buzzer_Init()
     Macro_Set_Bit(TIM3->CR1, 0);
 }
 
-void Buzzer_Play(uint32_t freq_hz)
+void Buzzer_Play(unsigned int freq_hz)
 {
     if (freq_hz == 0)
     {
@@ -42,8 +42,8 @@ void Buzzer_Play(uint32_t freq_hz)
         return;
     }
 
-    uint32_t arr = (1000000 / freq_hz) - 1;
-    uint32_t ccr = (arr + 1) / 2;
+    unsigned int arr = (1000000 / freq_hz) - 1;
+    unsigned int ccr = (arr + 1) / 2;
 
     TIM3->ARR = arr;
     TIM3->CCR3 = ccr;
@@ -55,7 +55,7 @@ void Buzzer_Play(uint32_t freq_hz)
     Macro_Set_Bit(TIM3->CCER, 8);
 }
 
-volatile uint32_t warning_tick = 0;
+volatile unsigned int warning_tick = 0;
 volatile static int warning_state = 0;
 
 // 소리만 잠시 끄는 함수 (PWM OFF)
