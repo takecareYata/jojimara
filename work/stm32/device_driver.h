@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
+
 // Uart.c
 extern void Uart2_Init(int baud);
 
@@ -54,16 +55,18 @@ extern void _Invalid_ISR();
 extern void Clock_Init();
 
 //motor.c
+#if 0
 extern void motors_init();
 extern void air_con_motor_start();
 extern void air_con_motor_stop();
 extern void air_purification_motor_start();
 extern void air_purification_motor_stop();
 extern void air_con_running_interrupt();
+#endif
 
 //buzzer.c
 extern void Buzzer_Init();
-extern void Buzzer_Play(uint32_t freq_hz);
+extern void Buzzer_Play(unsigned int freq_hz);
 extern void Buzzer_Mute();
 extern void start_buzzer();
 extern void stop_buzzer();
