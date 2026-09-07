@@ -68,12 +68,12 @@ extern void air_con_running_interrupt();
 #endif
 
 //buzzer.c
-extern void Buzzer_Init();
-extern void Buzzer_Play(uint32_t freq_hz);
-extern void Buzzer_Mute();
-extern void start_buzzer();
-extern void stop_buzzer();
-extern void buzzer_interrupt();
+// extern void Buzzer_Init();
+// extern void Buzzer_Play(uint32_t freq_hz);
+// extern void Buzzer_Mute();
+// extern void start_buzzer();
+// extern void stop_buzzer();
+// extern void buzzer_interrupt();
 
 //window_servo_motor.c
 extern void window_init();

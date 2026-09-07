@@ -1,106 +1,44 @@
-#include "device_driver.h"
+#include "buzzer.h"
 
-void Buzzer_Init()
-{
-    // 1. GPIOB, TIM3 
-    Macro_Set_Bit(RCC->AHB1ENR, 1); 
-    Macro_Set_Bit(RCC->APB1ENR, 1); 
-
-    // 2. PB0 핀 (AF2: TIM3_CH3) 설정
-    // MODER0: 2비트 폭, 0b10  쓰기
-    Macro_Write_Block(GPIOB->MODER, 0x3, 0x2, 0);
-
-    // AFR[0] (AFRL0): 4비트 폭, AF2(0x2) 쓰기
-    Macro_Write_Block(GPIOB->AFR[0], 0xF, 0x2, 0);
-
-    // 3. TIM3 시간축 설정 (SYSCLK 96MHz 기준 1MHz 카운터)
-    TIM3->PSC = 96 - 1;
-    TIM3->ARR = 250- 1; // 기본 4kHz
-    TIM3->CCR3 = 125;    // 50% 듀티비
-
-    // TIM3 Channel 3 PWM Mode 1 설정 & Preload 활성화
-
-    Macro_Write_Block(TIM3->CCMR2, 0x7, 0x6, 4);
-    Macro_Set_Bit(TIM3->CCMR2, 3);
-
-    // CR1: ARPE (Bit 7) -> ARR Preload Enable
-    Macro_Set_Bit(TIM3->CR1, 7);
-
-    // CCER: CC3E (Bit 8) -> PWM 출력 비활성화 상태로 대기
-    Macro_Clear_Bit(TIM3->CCER, 8);
-
-    // 5. 카운터 시작 (CR1: CEN, Bit 0)
-    Macro_Set_Bit(TIM3->CR1, 0);
+void buzzer_time_init(Buzzer_t *buzzer, TIM_TypeDef *htim, uint32_t channel, uint32_t timer_clock){
+    buzzer->htim = htim;
+    buzzer->channel = channel;
+    buzzer->timer_clock = timer_clock;
+    buzzer_insert_hz(buzzer, 0);
 }
 
-void Buzzer_Play(uint32_t freq_hz)
-{
+void buzzer_insert_hz(Buzzer_t *buzzer, uint32_t freq_hz){
+
     if (freq_hz == 0)
     {
-        // CCER: CC3E (Bit 8) 클리어하여 소리 끄기
-        Macro_Clear_Bit(TIM3->CCER, 8);
+        Macro_Clear_Bit(buzzer->htim->CCER, 8);
         return;
     }
 
-    unsigned int arr = (1000000 / freq_hz) - 1;
-    unsigned int ccr = (arr + 1) / 2;
+    uint32_t arr = (buzzer->timer_clock / freq_hz) - 1;
+    uint32_t ccr = (arr + 1) / 2;
 
-    TIM3->ARR = arr;
-    TIM3->CCR3 = ccr;
+    tim_set_auto_reload(buzzer, arr);
+    tim_set_compare(buzzer->htim,buzzer->channel, ccr);
 
     // EGR: UG (Bit 0) 세트 -> 설정값 즉시 갱신
-    Macro_Set_Bit(TIM3->EGR, 0);
+    Macro_Set_Bit(buzzer->htim->EGR, 0);
 
     // CCER: CC3E (Bit 8) 세트하여 PWM 출력 켜기
-    Macro_Set_Bit(TIM3->CCER, 8);
+    Macro_Set_Bit(buzzer->htim->CCER, 8);
 }
 
-volatile unsigned int warning_tick = 0;
-volatile static int warning_state = 0;
-
-// 소리만 잠시 끄는 함수 (PWM OFF)
-void Buzzer_Mute()
-{
-    Macro_Clear_Bit(TIM3->CCER, 8);
+void tim_set_auto_reload(Buzzer_t *buzzer, uint32_t arr){
+    buzzer->htim->ARR = arr;
 }
 
-volatile int is_bz_running_tick =0;
-
-// 경고음 완전히 시작 (명령 수신 시 1회 호출)
-void start_buzzer()
-{
-    warning_tick = 0;
-    Buzzer_Play(3000);
-    is_bz_running_tick =1;
-}
-
-// 경고음 완전히 정지 (명령 수신 시 1회 호출)
-void stop_buzzer()
-{
-    is_bz_running_tick =0;
-    Buzzer_Mute();                   // PWM 출력 정지
-}
-
-void buzzer_interrupt(){
-    if(is_bz_running_tick){
-        warning_tick++;
-
-        if (warning_tick >= 250) // 250ms 주기마다 On/Off 토글
-        {
-            warning_tick = 0;    
-            warning_state ^= 1; 
-
-            if (warning_state)
-            {
-                // 소리만 잠시 끔 (TIM1 카운터는 계속 돌아야 함)
-                Buzzer_Mute(); 
-            }
-            else
-            {
-                // 소리 켬
-                Buzzer_Play(3000); // 삐- 삐- 단속음  
-            }
-        }
+void tim_set_compare(TIM_TypeDef *htim, uint32_t channel, uint32_t ccr) {
+    switch (channel) {
+        case 1: htim->CCR1 = ccr; break;
+        case 2: htim->CCR2 = ccr; break;
+        case 3: htim->CCR3 = ccr; break;
+        case 4: htim->CCR4 = ccr; break;
+        default: break;
     }
-    
 }
+

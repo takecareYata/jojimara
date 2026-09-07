@@ -1,5 +1,6 @@
 #include "device_driver.h"
 #include "motor_app.h"
+#include "buzzer_app.h"
 #include <stdio.h>
 static void Sys_Init(int baud) 
 {
@@ -8,7 +9,7 @@ static void Sys_Init(int baud)
 	Uart2_Init(baud);
     Uart1_Init(baud);
     app_motor_init();
-    Buzzer_Init();
+    app_buzzer_init();
     TIM1_1ms_Interrupt_Init();
     window_init();
     led_init();

@@ -1,12 +1,13 @@
 #include "device_driver.h"
 #include "motor_app.h"
+#include "buzzer_app.h"
 
 void app_process_command(CommandType cmd){
     bool is_success = true;
     
     switch(cmd){
-        case CMD_DROWSY_WARN: start_buzzer(); break;
-        case CMD_DROWSY_OK: stop_buzzer(); break;
+        case CMD_DROWSY_WARN: app_start_buzzer(); break;
+        case CMD_DROWSY_OK: app_stop_buzzer(); break;
         case CMD_VENT_ON: app_aircon_start(); break;
         case CMD_WARN_CENTER: set_led_warning(CENTER); break;
         case CMD_WARN_RIGHT: set_led_warning(RIGHT); break;
