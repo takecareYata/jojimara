@@ -1,5 +1,8 @@
 #include "device_driver.h"
+#include "motor_app.h"
+#include "buzzer_app.h"
 #include <stdio.h>
+
 void _Invalid_ISR()
 {
 	unsigned int r = Macro_Extract_Area(SCB->ICSR, 0x1ff, 0);
@@ -51,8 +54,8 @@ void TIM1_UP_TIM10_IRQHandler()
     {
         Macro_Clear_Bit(TIM1->SR, 0); // 플래그를 지워야 무한 루프에 안 빠짐
 
-        air_con_running_interrupt();
-        buzzer_interrupt();
+        app_motor_1ms_ISR();
+        app_buzzer_interrupt();
         led_interrupt();
     }
 }

@@ -1,3 +1,6 @@
+#ifndef DEVICE_DRIVER_H
+#define DEVICE_DRIVER_H
+
 #include "stm32f4xx.h"
 #include "option.h"
 #include "macro.h"
@@ -5,6 +8,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
+
 // Uart.c
 extern void Uart2_Init(int baud);
 
@@ -54,20 +58,22 @@ extern void _Invalid_ISR();
 extern void Clock_Init();
 
 //motor.c
+#if 0
 extern void motors_init();
 extern void air_con_motor_start();
 extern void air_con_motor_stop();
 extern void air_purification_motor_start();
 extern void air_purification_motor_stop();
 extern void air_con_running_interrupt();
+#endif
 
 //buzzer.c
-extern void Buzzer_Init();
-extern void Buzzer_Play(uint32_t freq_hz);
-extern void Buzzer_Mute();
-extern void start_buzzer();
-extern void stop_buzzer();
-extern void buzzer_interrupt();
+// extern void Buzzer_Init();
+// extern void Buzzer_Play(uint32_t freq_hz);
+// extern void Buzzer_Mute();
+// extern void start_buzzer();
+// extern void stop_buzzer();
+// extern void buzzer_interrupt();
 
 //window_servo_motor.c
 extern void window_init();
@@ -92,3 +98,5 @@ extern void led_right_off();
 extern void led_left_off();
 extern void led_interrupt();
 extern void set_led_warning(LED_STATE led_state);
+
+#endif /* DEVICE_DRIVER_H */

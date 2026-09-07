@@ -1,13 +1,14 @@
 #include "device_driver.h"
-
+#include "motor_app.h"
+#include "buzzer_app.h"
 
 void app_process_command(CommandType cmd){
     bool is_success = true;
     
     switch(cmd){
-        case CMD_DROWSY_WARN: start_buzzer(); break;
-        case CMD_DROWSY_OK: stop_buzzer(); break;
-        case CMD_VENT_ON: air_con_motor_start(); break;
+        case CMD_DROWSY_WARN: app_start_buzzer(); break;
+        case CMD_DROWSY_OK: app_stop_buzzer(); break;
+        case CMD_VENT_ON: app_aircon_start(); break;
         case CMD_WARN_CENTER: set_led_warning(CENTER); break;
         case CMD_WARN_RIGHT: set_led_warning(RIGHT); break;
         case CMD_WARN_LEFT: set_led_warning(LEFT); break;
@@ -16,11 +17,11 @@ void app_process_command(CommandType cmd){
         case CMD_LEFT_OK: led_left_off(); break;
         case CMD_WIN_CLOSE:
             window_close();
-            air_purification_motor_start();
+            app_airpurifier_start();
             break;
         case CMD_WIN_OPEN:
             window_open();
-            air_purification_motor_stop( );
+            app_airpurifier_stop();
             break;
         default:
             is_success = false;
