@@ -1,5 +1,8 @@
 #include "device_driver.h"
 
+#define WINDOW_OPEN_CCR     500   // 열림 펄스폭 (0.5ms)
+#define WINDOW_CLOSE_CCR    2500  // 닫힘 펄스폭 (2.5ms)
+
 void window_init(){
     //GPIOB 및 TIM4 클럭 인가
     Macro_Set_Bit(RCC->AHB1ENR, 1);     // GPIOB Clock Enable
@@ -23,10 +26,10 @@ void window_init(){
     Macro_Set_Bit(TIM4->CR1, 0);        
 }
 
-void window_open(){
-    TIM4->CCR1 = 500;   
+void window_open() {
+    TIM4->CCR1 = WINDOW_OPEN_CCR;
 }
 
-void window_close(){
-    TIM4->CCR1 = 2500;   
+void window_close() {
+    TIM4->CCR1 = WINDOW_CLOSE_CCR;
 }
