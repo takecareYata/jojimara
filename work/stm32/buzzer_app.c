@@ -11,6 +11,7 @@ volatile static unsigned int warning_tick = 0;
 volatile static int warning_state = 0;
 volatile static int is_bz_running_tick = 0;
 
+//핀이랑 타이머, 채널이 변경된 경우 이 함수를 바꾸면 됨
 void app_buzzer_init(){
     buzzer_hw_init();
     buzzer_time_init(&buzzer, TIM3, BUZZER_CHANNEL, BUZZER_TIM_CLK_HZ);

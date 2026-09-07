@@ -1,28 +1,31 @@
 #include "motor_app.h"
 
+#define AC_RUNNING_TICK_MS  10000
+#define MOTOR_SPEED         1000
+
 static DCMotor_t motor_ac;
 static DCMotor_t motor_purifier;
 
 static volatile int ac_running_tick = 0;
 static volatile int is_ac_running = 0;
 
-
+//핀이랑 타이머, 채널이 변경된 경우 이 함수를 바꾸면 됨
 void app_motor_init(){
     motor_hw_init();
 
-    // 핀과 레지스터 바인딩
+    
     dcmotor_init(&motor_ac, GPIOA, 6, 7, &(TIM2->CCR3));
     dcmotor_init(&motor_purifier, GPIOB, 8, 9, &(TIM2->CCR2));
 }
 
 void app_aircon_start(){
-    dcmotor_start(&motor_ac, 1000);
+    dcmotor_start(&motor_ac, MOTOR_SPEED);
     ac_running_tick = 0;
     is_ac_running = 1;
 }
 
 void app_airpurifier_start(){
-    dcmotor_start(&motor_purifier, 1000);
+    dcmotor_start(&motor_purifier, MOTOR_SPEED);
 }
 
 void app_airpurifier_stop(){
@@ -33,7 +36,7 @@ void app_airpurifier_stop(){
 void app_motor_1ms_ISR(){
     if (is_ac_running) {
         ac_running_tick++;
-        if (ac_running_tick >= 10000) {
+        if (ac_running_tick >= AC_RUNNING_TICK_MS) {
             dcmotor_stop(&motor_ac);
             is_ac_running = 0;
         }
