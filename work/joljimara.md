@@ -29,7 +29,7 @@
                                                   │
                 ┌─────────────────────────────────┼─────────────────────────────────┐
                 ▼                                 ▼                                 ▼
-          [ 경고 부저 ]                        [ 환기 팬 ]               [ 창문 제어 모터 (UP/DOWN) ]
+          [ 경고 부저 ]                 [ 공기청정, 에어컨 모터 ]               [ 창문 제어 모터 (UP/DOWN) ]
 ```
 
 ### 1-4 프로젝트 폴더 구조
@@ -44,9 +44,24 @@ work/
     │   ├── gui.py
     │   └── main.py
     └── stm32/
-        ├── uart.c
-        ├── buzzer.c
-        └── main.c
+        ├── main.c                  # 시스템 초기화 및 메인 루프
+        ├── app_process.c           # 전체 애플리케이션 시나리오 및 상태 머신(FSM) 제어
+        ├── protocol.c              # UART/통신 패킷 파싱
+        │
+        ├── motor_app.c             # [App] 모터 상위 제어 로직 (동작 모드, 상태 관리)
+        ├── motor.c                 # [Driver] 모터 구동 추상화 (속도, 방향, 각도 계산)
+        ├── motor_hw.c              # [LL/BSP] 모터 구동을 위한 타이머/GPIO 레지스터 제어
+        │
+        ├── buzzer_app.c            # [App] 부저 알림음 시나리오 (비프음 패턴, 멜로디 제어)
+        ├── buzzer.c                # [Driver] 주파수 및 재생 시간 처리 추상화
+        ├── buzzer_hw.c             # [LL/BSP] 부저 PWM 출력용 타이머 레지스터 제어
+        │
+        ├── led.c                   # LED On/Off 및 토글 제어
+        ├── window_servo_motor.c    # 창문 개폐용 서보모터 각도 제어 (PWM 펄스 제어)
+        ├── exception.c             # 하드웨어 예외 처리 (인터럽트 핸들러)
+        ├── timer.c                 # 공용 딜레이 타이머(TIM1) 설정
+        ├── clock.c                 # 시스템 클럭(RCC) 설정
+        └── uart.c                  # UART 초기화 및 송수신 제어
 ```
 
 ---
@@ -153,11 +168,15 @@ sequenceDiagram
 | --- | --- | --- |
 |DROWSY_WARN| 졸음 경고 발생 | 경고 부저(Buzzer) 지속 패턴 출력 |
 |DROWSY_OK| 졸음 상태 해제 | 경고 부저 Off |
-|VENT_ON| 환기 요청 (하품 감지) | 환기 시스템 팬(Fan) 10초간 동작 |
-|VENT_OFF| 환기 정지 | 환기 시스템 팬 Off |
-|WIN_CLOSE| 창문 닫기 (터널 진입) | 창문 제어 모터 정방향 구동 (Window Up) |
-|WIN_OPEN| 창문 열기 (터널 탈출) | 창문 제어 모터 역방향 구동 (Window Down) |
-|SIDE_WARN| 옆차선 근접 경고 | 단발성 비프음 / 경고 LED 토글 |
+|VENT_ON| 에어컨 요청 (하품 감지) | 에어컨 모터 정방향 구동(10초만 작동 후 정지) |
+|WIN_CLOSE| 창문 닫기 (터널 진입) | 창문(서보모터 정방향), 공기청정모터 정방향 구동 (`IN1=HIGH, IN2=LOW`)  |
+|WIN_OPEN| 창문 열기 (터널 탈출) | 창문(서보모터 역방향), 공기청정모터 정지 |
+| WARN_CENTER | 앞차 근접 경고 | 경고 중앙 LED 토글 |
+| CENTER_OK | 앞차 경고 해제 | 경고 중앙 LED off |
+| WARN_RIGHT | 오른쪽 차선 근접 경고 | 경고 오른쪽 LED 토글 |
+| RIGHT_OK | 오른쪽 차선 경고 해제 | 경고 오른쪽 LED off |
+| WARN_LEFT | 왼쪽 차선 근접 경고 | 경고 왼쪽 LED 토글 |
+| LEFT_OK | 왼쪽 차선 경고 해제 | 경고 왼쪽 LED off |
 
 ---
 
@@ -186,13 +205,13 @@ sequenceDiagram
 ## 5.2 STM32F4 펌웨어 계층
 
 #### [1] 링버퍼(Ring Buffer) 기반 UART 수신
-* UART2/3 RX Interrupt 발생 시 전달받은 Byte 데이터를 지연 없이 링버퍼에 적재
-* `Main Loop`에서 개행문자(`\n`) 단위로 수신 프레임을 조립하고 CLI 파서를 통해 명령(`DROWSY_WARN`, `WIN_CLOSE` 등) 판별
+* UART1 RX Interrupt 발생 시 전달받은 Byte 데이터를 지연 없이 고정 버퍼에 적재
+* `protocol.c`에서 개행문자(`\n`) 단위로 수신 프레임을 조립하고 parser 함수를 통해 명령(`DROWSY_WARN`, `WIN_CLOSE` 등) 판별
 
 #### [2] 하드웨어 타이머 및 PWM 액츄에이터 제어
 * **부저 제어**: TIM3 PWM 제어를 통해 졸음 위험 수준에 맞는 경고음 주파수 발생
-* **환기 팬 제어**: GPIO Output 또는 TIM4 PWM을 통한 DC 팬 속도 및 온/오프 제어
-* **창문 제어 모터**: 리밋 스위치 인터럽트(EXTI)와 연동하여 안전하게 창문 모터를 지정된 위치(Up/Down)까지 구동
+* **공기청정, 에어컨 모터 제어**: GPIO Output 또는 TIM2 PWM을 통한 DC 팬 온/오프 제어
+* **창문 제어 모터**: 터널 입구, 출구가 확인되면 창문 모터를 지정된 위치(Up/Down)까지 구동
 
 ---
 
@@ -216,10 +235,10 @@ sequenceDiagram
 
 | 계층 | 사용 기술 / 라이브러리 | 주요 역할 |
 | --- | --- | --- |
-| **메인 연산부 (Jetson)** | Linux (Ubuntu), PyTorch, YOLOv8/v11, OpenCV, Dlib/MediaPipe, C++/Python | 듀얼 비전 추론, 상태 판단, 패킷 전송 |
-| **제어 및 출력부 (STM32F4)**| Bare-metal C, CMSIS, Ring Buffer, TIM PWM, EXTI | UART 수신 및 파싱, 부저/팬/모터 제어 |
+| **메인 연산부 (Jetson)** | Linux (Ubuntu), PyTorch, YOLOv8/v11, OpenCV, Dlib/MediaPipe, Python | 듀얼 비전 추론, 상태 판단, 패킷 전송 |
+| **제어 및 출력부 (STM32F4)**| Bare-metal C, CMSIS, TIM PWM, EXTI | UART 수신 및 파싱, 부저/팬/모터 제어 |
 | **디스플레이부 (PC)** | Linux / Windows XServer (XLaunch), Ethernet, SSH | GUI 원격 모니터링 렌더링 |
-| **통신 프로토콜** | ASCII 기반 Custom Packet | UART (115200 8N1), TCP/IP (Ethernet X11) |
+| **통신 프로토콜** | ASCII 기반 Custom Packet | UART (115200 8N1) |
 
 ---
 
