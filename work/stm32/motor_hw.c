@@ -1,6 +1,6 @@
 #include "motor_hw.h"
 
-void Motor_HW_Init() {
+void motor_hw_init() {
     // 1. 클럭 활성화
     Macro_Set_Bit(RCC->AHB1ENR, 0); // GPIOA
     Macro_Set_Bit(RCC->AHB1ENR, 1); // GPIOB

@@ -102,21 +102,21 @@ void air_purification_motor_stop()
 }
 #else
 
-void DCMotor_Init(DCMotor_t *motor, GPIO_TypeDef *port, uint8_t in1, uint8_t in2, volatile unsigned int *ccr) {
+void dcmotor_init(DCMotor_t *motor, GPIO_TypeDef *port, uint8_t in1, uint8_t in2, volatile uint32_t *ccr) {
     motor->dir_port = port;
     motor->pin_in1  = in1;
     motor->pin_in2  = in2;
     motor->ccr      = ccr;
-    DCMotor_Stop(motor);
+    dcmotor_stop(motor);
 }
 
-void DCMotor_Start(DCMotor_t *motor, unsigned int speed) {
+void dcmotor_start(DCMotor_t *motor, uint32_t speed) {
     Macro_Clear_Bit(motor->dir_port->ODR, motor->pin_in1);
     Macro_Set_Bit(motor->dir_port->ODR, motor->pin_in2);
     *(motor->ccr) = speed;
 }
 
-void DCMotor_Stop(DCMotor_t *motor) {
+void dcmotor_stop(DCMotor_t *motor) {
     Macro_Clear_Bit(motor->dir_port->ODR, motor->pin_in1);
     Macro_Clear_Bit(motor->dir_port->ODR, motor->pin_in2);
     *(motor->ccr) = 0;

@@ -1,5 +1,5 @@
 #include "device_driver.h"
-
+#include "motor_app.h"
 #include <stdio.h>
 static void Sys_Init(int baud) 
 {
@@ -7,7 +7,7 @@ static void Sys_Init(int baud)
     Clock_Init();
 	Uart2_Init(baud);
     Uart1_Init(baud);
-    motors_init();
+    app_motor_init();
     Buzzer_Init();
     TIM1_1ms_Interrupt_Init();
     window_init();

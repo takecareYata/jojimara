@@ -33,7 +33,7 @@ void Buzzer_Init()
     Macro_Set_Bit(TIM3->CR1, 0);
 }
 
-void Buzzer_Play(unsigned int freq_hz)
+void Buzzer_Play(uint32_t freq_hz)
 {
     if (freq_hz == 0)
     {

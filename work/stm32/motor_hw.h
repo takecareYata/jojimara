@@ -1,3 +1,3 @@
 #include "device_driver.h"
 
-void Motor_HW_Init(void);
+void motor_hw_init();

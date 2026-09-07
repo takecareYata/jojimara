@@ -1,3 +1,6 @@
+#ifndef DEVICE_DRIVER_H
+#define DEVICE_DRIVER_H
+
 #include "stm32f4xx.h"
 #include "option.h"
 #include "macro.h"
@@ -66,7 +69,7 @@ extern void air_con_running_interrupt();
 
 //buzzer.c
 extern void Buzzer_Init();
-extern void Buzzer_Play(unsigned int freq_hz);
+extern void Buzzer_Play(uint32_t freq_hz);
 extern void Buzzer_Mute();
 extern void start_buzzer();
 extern void stop_buzzer();
@@ -95,3 +98,5 @@ extern void led_right_off();
 extern void led_left_off();
 extern void led_interrupt();
 extern void set_led_warning(LED_STATE led_state);
+
+#endif /* DEVICE_DRIVER_H */
