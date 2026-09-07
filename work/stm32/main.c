@@ -23,12 +23,10 @@ volatile int Uart_Data_In;
 void Main(){
     Sys_Init(115200);
     Uart1_RX_Interrupt_Enable(1);
-    printf("test_start\n");
+    
     while(1){
         if(Uart_Data_In){
-            printf("before[Jetson -> MCU]: %s\r\n", cmd_buf);
             app_process_command(UART_ParseCommand(cmd_buf));
-            printf("2\n");
             Uart_Data_In = 0;
         }
     }
