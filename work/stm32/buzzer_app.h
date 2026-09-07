@@ -1,5 +1,4 @@
 #include "buzzer.h"
-#include "buzzer_hw.h"
 
 #ifndef BUZZER_APP_H
 #define BUZZER_APP_H
