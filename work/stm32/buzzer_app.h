@@ -1,7 +1,8 @@
-#include "buzzer.h"
-
 #ifndef BUZZER_APP_H
 #define BUZZER_APP_H
+
+#include "buzzer.h"
+#include "buzzer_hw.h"
 
 void app_buzzer_init();
 

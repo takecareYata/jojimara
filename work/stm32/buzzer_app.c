@@ -1,5 +1,4 @@
 #include "buzzer_app.h"
-#include "buzzer.h"
 
 #define BZ_WARNING_HZ (3000)
 #define BZ_TOGGLE_MS  (250)
