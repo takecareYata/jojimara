@@ -11,7 +11,7 @@ void buzzer_insert_hz(Buzzer_t *buzzer, uint32_t freq_hz){
 
     if (freq_hz == 0)
     {
-        Macro_Clear_Bit(buzzer->htim->CCER, 8);
+        Macro_Clear_Bit(buzzer->htim->CCER, (buzzer->channel - 1) * 4);
         return;
     }
 
