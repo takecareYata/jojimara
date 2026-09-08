@@ -16,6 +16,7 @@ extern void Uart1_Init(int baud);
 extern void UART1_GetCommand(char *out_buf);
 extern void UART1_SendChar(char c);
 extern void UART1_SendString(const char *str);
+extern void UART1_Ack_SendString(bool is_success);
 extern void Uart1_RX_Interrupt_Enable(int en);
 
 //protocol.c

@@ -29,11 +29,5 @@ void app_process_command(CommandType cmd){
     }
 
     // 작업 수행후 응답
-    if(is_success){
-        UART1_SendString("ACKOK\r\n");
-    }
-    else if(cmd != CMD_NONE){
-        UART1_SendString("NACK\r\n");
-    }
-    
+    UART1_Ack_SendString(is_success); 
 }

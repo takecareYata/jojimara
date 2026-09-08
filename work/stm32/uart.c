@@ -79,6 +79,15 @@ void UART1_SendString(const char *str) {
     }
 }
 
+void UART1_Ack_SendString(bool is_success){
+  if(is_success){
+        UART1_SendString("ACKOK\r\n");
+    }
+    else {
+        UART1_SendString("NACK\r\n");
+    }
+}
+
 void Uart1_RX_Interrupt_Enable(int en)
 {
   if(en)
