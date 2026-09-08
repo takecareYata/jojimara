@@ -36,7 +36,7 @@ FALLBACK_VIDEO_PATH = str(BASE_DIR / "test_video3.mp4")
 YOLO_ENGINE_PATH = str(BASE_DIR / "yolo11n.engine")
 
 # Jetson - STM32 UART 설정
-UART_PORT = "/dev/ttyTHS1"
+UART_PORT = "/dev/ttyACM0"
 UART_BAUD_RATE = 115200
 
 # 터널 출구 통과 판단 지연 시간 (초)
