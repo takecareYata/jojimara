@@ -14,7 +14,7 @@ void _Invalid_ISR()
 extern char cmd_buf[64];
 extern volatile int Uart_Data_In;
 extern volatile unsigned char Uart_Data;
-
+#if 0
 void USART1_IRQHandler()
 {
     static int rx_idx = 0;
@@ -46,6 +46,30 @@ void USART1_IRQHandler()
 
     NVIC_ClearPendingIRQ(37);
 }
+#else
+void USART2_IRQHandler(void) {
+    static int rx_idx = 0;
+
+    if (USART2->SR & (1 << 5)) { // RXNE
+        char ch = (char)(USART2->DR);
+
+        if (ch == '\n' || ch == '\r') {
+            if (rx_idx > 0) {
+                cmd_buf[rx_idx] = '\0';
+                Uart_Data_In = 1;   
+                rx_idx = 0;
+            }
+        } else {
+            if (rx_idx < sizeof(cmd_buf) - 1) {
+                cmd_buf[rx_idx++] = ch;
+            }
+        }
+    }
+
+    NVIC_ClearPendingIRQ(USART2_IRQn); // 38번 벡터
+}
+#endif
+
 
 void TIM1_UP_TIM10_IRQHandler()
 {
