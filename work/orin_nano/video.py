@@ -4,13 +4,16 @@ import numpy as np
 import threading
 from ultralytics import YOLO
 
-# [CONSTANTS]
+# [CONSTANTS] 고정 사다리꼴 비율 (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
 DEFAULT_ROI_RATIOS = np.array([
-    [0.32, 0.85],  # Top-Left
-    [0.68, 0.85],  # Top-Right
-    [0.73, 0.95],  # Bottom-Right
-    [0.27, 0.95]   # Bottom-Left
+    [0.40, 0.85],  # Top-Left
+    [0.60, 0.85],  # Top-Right
+    [0.65, 0.95],  # Bottom-Right
+    [0.35, 0.95]   # Bottom-Left
 ], dtype=np.float32)
+
+# 양옆 평행사변형 너비 조절 비율 (기본 차선 폭의 0.75배 → 이 값을 변경하여 크기 조절 가능)
+SIDE_ROI_OFFSET_RATIO = 0.90
 
 CLASS_VEHICLE = 0
 CLASS_TUNNEL_ENTRANCE = 1
@@ -28,20 +31,20 @@ CLASS_NAMES = {
 
 
 class LaneDetector:
-    """차선 검출 및 가변 ROI 계산을 담당하는 클래스"""
+    """고정 비율 좌표 배열을 사용하여 고정 ROI(중앙, 좌, 우) 영역 계산"""
     def __init__(self):
-        self.prev_slopes_bs = None
         self.debug_edges_frame = None
 
-    def get_default_rois(self, width, height):
+    def get_default_rois(self, width, height, side_offset_ratio=SIDE_ROI_OFFSET_RATIO):
         center_pts = (DEFAULT_ROI_RATIOS * [width, height]).astype(np.int32)
         
         top_left, top_right, bot_right, bot_left = center_pts
         lane_width_top = top_right[0] - top_left[0]
         lane_width_bot = bot_right[0] - bot_left[0]
 
-        offset_top = int(lane_width_top * 0.75)
-        offset_bot = int(lane_width_bot * 0.75)
+        # 설정된 side_offset_ratio 비율에 맞추어 양옆 평행사변형 크기 계산
+        offset_top = int(lane_width_top * side_offset_ratio)
+        offset_bot = int(lane_width_bot * side_offset_ratio)
 
         y_top = top_left[1]
         y_bottom = bot_left[1]
@@ -64,152 +67,9 @@ class LaneDetector:
 
     def detect_rois(self, frame, y_top_ratio=0.85, y_bottom_ratio=0.95):
         h, w = frame.shape[:2]
-
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
-        lower_white = np.array([0, 0, 130])
-        upper_white = np.array([180, 50, 255])
-        mask_white = cv2.inRange(hsv, lower_white, upper_white)
-
-        lower_yellow = np.array([12, 40, 80])
-        upper_yellow = np.array([32, 255, 255])
-        mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
-
-        color_mask = cv2.bitwise_or(mask_white, mask_yellow)
-
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blur = cv2.GaussianBlur(gray, (5, 5), 0)
-        
-        edges = cv2.Canny(blur, 50, 150)
-        combined = cv2.bitwise_and(edges, color_mask)
-
-        search_roi_pts = np.array([
-            [int(w * 0.05), int(h * 0.98)],
-            [int(w * 0.20), int(h * 0.55)],
-            [int(w * 0.80), int(h * 0.55)],
-            [int(w * 0.95), int(h * 0.98)]
-        ], np.int32)
-
-        roi_mask = np.zeros_like(combined)
-        cv2.fillPoly(roi_mask, [search_roi_pts], 255)
-        masked_edges = cv2.bitwise_and(combined, roi_mask)
-        
-        self.debug_edges_frame = masked_edges.copy()
-
-        lines = cv2.HoughLinesP(masked_edges, 1, np.pi / 180, threshold=25, minLineLength=25, maxLineGap=110)
-
-        if lines is None:
-            self.prev_slopes_bs = None
-            return None
-
-        left_slopes, left_bs = [], []
-        right_slopes, right_bs = [], []
-
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            if x1 == x2:
-                continue
-            slope = (y2 - y1) / (x2 - x1)
-            b = y1 - slope * x1
-
-            if -1.8 < slope < -0.2:
-                left_slopes.append(slope)
-                left_bs.append(b)
-            elif 0.2 < slope < 1.8:
-                right_slopes.append(slope)
-                right_bs.append(b)
-
-        if not left_slopes or not right_slopes:
-            self.prev_slopes_bs = None
-            return None
-
-        curr_il_slope, curr_il_b = np.mean(left_slopes), np.mean(left_bs)
-        curr_ir_slope, curr_ir_b = np.mean(right_slopes), np.mean(right_bs)
-
-        if self.prev_slopes_bs is None:
-            il_slope, il_b, ir_slope, ir_b = curr_il_slope, curr_il_b, curr_ir_slope, curr_ir_b
-        else:
-            alpha = 0.35
-            il_slope = alpha * curr_il_slope + (1 - alpha) * self.prev_slopes_bs[0]
-            il_b = alpha * curr_il_b + (1 - alpha) * self.prev_slopes_bs[1]
-            ir_slope = alpha * curr_ir_slope + (1 - alpha) * self.prev_slopes_bs[2]
-            ir_b = alpha * curr_ir_b + (1 - alpha) * self.prev_slopes_bs[3]
-
-        y_top = int(h * y_top_ratio)
-        y_bottom = int(h * y_bottom_ratio)
-
-        try:
-            x_il_top = int((y_top - il_b) / il_slope)
-            x_il_bot = int((y_bottom - il_b) / il_slope)
-
-            x_ir_top = int((y_top - ir_b) / ir_slope)
-            x_ir_bot = int((y_bottom - ir_b) / ir_slope)
-
-            min_lane_width_top = int(w * 0.15)
-            if (x_ir_top - x_il_top) < min_lane_width_top:
-                center_x = (x_il_top + x_ir_top) // 2
-                x_il_top = center_x - (min_lane_width_top // 2)
-                x_ir_top = center_x + (min_lane_width_top // 2)
-
-            def_tl_x = int(DEFAULT_ROI_RATIOS[0, 0] * w)
-            def_tr_x = int(DEFAULT_ROI_RATIOS[1, 0] * w)
-            def_br_x = int(DEFAULT_ROI_RATIOS[2, 0] * w)
-            def_bl_x = int(DEFAULT_ROI_RATIOS[3, 0] * w)
-
-            x_il_top = max(x_il_top, def_tl_x)
-            x_ir_top = min(x_ir_top, def_tr_x)
-            x_ir_bot = min(x_ir_bot, def_br_x)
-            x_il_bot = max(x_il_bot, def_bl_x)
-
-            edge_margin = int(w * 0.05)
-            if (x_il_top <= edge_margin or x_il_top >= w - edge_margin or
-                x_ir_top <= edge_margin or x_ir_top >= w - edge_margin or
-                x_il_bot <= edge_margin or x_il_bot >= w - edge_margin or
-                x_ir_bot <= edge_margin or x_ir_bot >= w - edge_margin or
-                x_il_top >= x_ir_top or x_il_bot >= x_ir_bot):
-                
-                self.prev_slopes_bs = None
-                return None
-
-            self.prev_slopes_bs = (il_slope, il_b, ir_slope, ir_b)
-
-            center_pts = np.array([
-                [x_il_top, y_top],
-                [x_ir_top, y_top],
-                [x_ir_bot, y_bottom],
-                [x_il_bot, y_bottom]
-            ], np.int32)
-
-            lane_width_top = x_ir_top - x_il_top
-            lane_width_bot = x_ir_bot - x_il_bot
-
-            offset_top = int(lane_width_top * 0.75)
-            offset_bot = int(lane_width_bot * 0.75)
-
-            left_pts = np.array([
-                [max(0, x_il_top - offset_top), y_top],
-                [x_il_top, y_top],
-                [x_il_bot, y_bottom],
-                [max(0, x_il_bot - offset_bot), y_bottom]
-            ], np.int32)
-
-            right_pts = np.array([
-                [x_ir_top, y_top],
-                [min(w, x_ir_top + offset_top), y_top],
-                [min(w, x_ir_bot + offset_bot), y_bottom],
-                [x_ir_bot, y_bottom]
-            ], np.int32)
-
-            return center_pts, left_pts, right_pts
-
-        except ZeroDivisionError:
-            pass
-
-        self.prev_slopes_bs = None
-        return None
+        return self.get_default_rois(w, h)
 
     def reset(self):
-        self.prev_slopes_bs = None
         self.debug_edges_frame = None
 
 
@@ -229,7 +89,7 @@ class VideoProcessingThread(threading.Thread):
         self.tracked_roi_vehicles = {}
         self.tracked_tunnels = {}
         
-        self.MAX_MISS_VEHICLE = 20  
+        self.MAX_MISS_VEHICLE = 30  
         self.MAX_MISS_TUNNEL = 30   
 
         self.processed_frame = None
@@ -256,7 +116,6 @@ class VideoProcessingThread(threading.Thread):
         self.stop_event.set()
 
     def draw_bbox(self, frame, box, label, color, thickness=2):
-        """사각 프레임과 라벨을 시각화하는 헬퍼 함수"""
         x1, y1, x2, y2 = box
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
         
@@ -334,16 +193,7 @@ class VideoProcessingThread(threading.Thread):
                     interpolation=cv2.INTER_AREA,
                 )
 
-            height, width = frame.shape[:2]
-
-            rois = self.lane_detector.detect_rois(frame, y_top_ratio=0.85, y_bottom_ratio=0.95)
-            
-            if rois is not None:
-                center_roi, left_roi, right_roi = rois
-                is_lane_detected = True
-            else:
-                center_roi, left_roi, right_roi = self.lane_detector.get_default_rois(width, height)
-                is_lane_detected = False
+            center_roi, left_roi, right_roi = self.lane_detector.detect_rois(frame)
 
             display_frame = frame.copy()
             current_frame_roi_track_ids = set()
@@ -404,7 +254,7 @@ class VideoProcessingThread(threading.Thread):
                                     "in_right": in_right
                                 }
 
-            # [1] 터널 상태 업데이트 및 바운딩 박스 시각화
+            # [1] 터널 상태 업데이트 및 시각화
             expired_tunnel_ids = []
             has_entrance = False
             has_exit = False
@@ -422,10 +272,10 @@ class VideoProcessingThread(threading.Thread):
                 if info["miss_count"] <= self.MAX_MISS_TUNNEL:
                     if cls_id == CLASS_TUNNEL_ENTRANCE:
                         has_entrance = True
-                        color = (0, 165, 255)  # 주황색 (입구)
+                        color = (0, 165, 255)
                     else:
                         has_exit = True
-                        color = (255, 255, 0)  # 하늘색 (출구)
+                        color = (255, 255, 0)
                     
                     label_text = f"{CLASS_NAMES.get(cls_id, 'Tunnel')} {conf:.2f}"
                     self.draw_bbox(display_frame, box, label_text, color)
@@ -435,7 +285,7 @@ class VideoProcessingThread(threading.Thread):
             for track_id in expired_tunnel_ids:
                 del self.tracked_tunnels[track_id]
 
-            # [2] 차량 상태 업데이트 및 바운딩 박스 시각화
+            # [2] 차량 상태 업데이트 및 시각화
             expired_vehicle_ids = []
             flag_left = False
             flag_center = False
@@ -465,8 +315,8 @@ class VideoProcessingThread(threading.Thread):
             for track_id in expired_vehicle_ids:
                 del self.tracked_roi_vehicles[track_id]
 
-            # [3] ROI 영역별 시각화
-            color_center = (0, 0, 255) if flag_center else ((0, 255, 0) if is_lane_detected else (255, 255, 0))
+            # [3] 고정 ROI 영역 시각화
+            color_center = (0, 0, 255) if flag_center else (0, 255, 0)
             cv2.polylines(display_frame, [center_roi], isClosed=True, color=color_center, thickness=2)
 
             if left_roi is not None:
@@ -483,7 +333,7 @@ class VideoProcessingThread(threading.Thread):
 
             with self.lock:
                 self.processed_frame = display_frame
-                self.debug_frame = self.lane_detector.debug_edges_frame
+                self.debug_frame = None
                 
                 self.warning_left = flag_left
                 self.warning_center = flag_center
