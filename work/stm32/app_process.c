@@ -2,32 +2,51 @@
 #include "motor_app.h"
 #include "buzzer_app.h"
 
-void app_process_command(CommandType cmd){
-    bool is_success = true;
-    
-    switch(cmd){
-        case CMD_DROWSY_WARN: app_start_buzzer(); break;
-        case CMD_DROWSY_OK: app_stop_buzzer(); break;
-        case CMD_VENT_ON: app_aircon_start(); break;
-        case CMD_WARN_CENTER: set_led_warning(CENTER); break;
-        case CMD_WARN_RIGHT: set_led_warning(RIGHT); break;
-        case CMD_WARN_LEFT: set_led_warning(LEFT); break;
-        case CMD_CENTOR_OK: led_center_off(); break;
-        case CMD_RIGHT_OK: led_right_off(); break;
-        case CMD_LEFT_OK: led_left_off(); break;
-        case CMD_WIN_CLOSE:
-            window_close();
-            app_airpurifier_start();
-            break;
-        case CMD_WIN_OPEN:
-            window_open();
-            app_airpurifier_stop();
-            break;
-        default:
-            is_success = false;
-            break;
+// 복합 동작(예: 윈도우+공기청정기)은 래퍼 함수로 묶어 등록
+static void action_win_close() {
+    window_close();
+    app_airpurifier_start();
+}
+
+static void action_win_open() {
+    window_open();
+    app_airpurifier_stop();
+}
+
+static void action_warn_center() { set_led_warning(CENTER); }
+static void action_warn_right()  { set_led_warning(RIGHT); }
+static void action_warn_left()   { set_led_warning(LEFT); }
+
+// 테이블 정의: 여기에 한 줄씩만 추가/수정하면 모든 로직이 자동 연동됨
+static const CommandEntry cmd_table[] = {
+    { CMD_DROWSY_WARN, "DROWSY_WARN", 11, app_start_buzzer },
+    { CMD_DROWSY_OK,   "DROWSY_OK",    9, app_stop_buzzer },
+    { CMD_VENT_ON,     "VENT_ON",      7, app_aircon_start },
+    { CMD_WARN_CENTER, "WARN_CENTER", 11, action_warn_center },
+    { CMD_WARN_RIGHT,  "WARN_RIGHT",  10, action_warn_right },
+    { CMD_WARN_LEFT,   "WARN_LEFT",    9, action_warn_left },
+    { CMD_CENTOR_OK,   "CENTOR_OK",    9, led_center_off },
+    { CMD_RIGHT_OK,    "RIGHT_OK",     8, led_right_off },
+    { CMD_LEFT_OK,     "LEFT_OK",      7, led_left_off },
+    { CMD_WIN_CLOSE,   "WIN_CLOSE",    9, action_win_close },
+    { CMD_WIN_OPEN,    "WIN_OPEN",     8, action_win_open },
+};
+
+#define CMD_TABLE_SIZE (sizeof(cmd_table) / sizeof(cmd_table[0]))
+
+
+void app_process_command(CommandType in_cmd, char *out_ack, int max_len) {
+    for (int i = 0; i < CMD_TABLE_SIZE; i++) {
+        if (cmd_table[i].cmd_type == in_cmd) {
+            if (cmd_table[i].handler != NULL) {
+                cmd_table[i].handler();
+            }
+
+            snprintf(out_ack, max_len, "ACK_%s\r\n", cmd_table[i].cmd_str);
+            return;
+        }
     }
 
-    // 작업 수행후 응답
-    UART1_Ack_SendString(is_success); 
+    // 일치하는 enum 값이 없을 때 (또는 CMD_INVALID 등)
+    snprintf(out_ack, max_len, "NACK_INVALID_CMD\r\n");
 }

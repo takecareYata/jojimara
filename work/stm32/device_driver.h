@@ -10,14 +10,18 @@
 #include <stdio.h>
 
 // Uart.c
+// extern void Uart1_Init(int baud);
+// extern void UART1_GetCommand(char *out_buf);
+// extern void UART1_SendChar(char c);
+// extern void UART1_SendString(const char *str);
+// extern void UART1_Ack_SendString(bool is_success);
+// extern void Uart1_RX_Interrupt_Enable(int en);
 extern void Uart2_Init(int baud);
-
-extern void Uart1_Init(int baud);
-extern void UART1_GetCommand(char *out_buf);
-extern void UART1_SendChar(char c);
-extern void UART1_SendString(const char *str);
-extern void UART1_Ack_SendString(bool is_success);
-extern void Uart1_RX_Interrupt_Enable(int en);
+extern void UART2_GetCommand(char *out_buf);
+extern void UART2_SendChar(char c);
+extern void UART2_SendString(const char *str);
+extern void UART2_Ack_SendString(char *ack_buf);
+extern void Uart2_RX_Interrupt_Enable(int en);
 
 //protocol.c
 
@@ -48,7 +52,14 @@ extern CommandType UART_ParseCommand(char *cmd);
 
 
 //app_process.c
-extern void app_process_command(CommandType cmd);
+typedef void (*CmdHandler)(void);
+typedef struct {
+    CommandType cmd_type;      // 명령어 Enum 타입
+    const char *cmd_str;       // 명령어 문자열
+    int length;                // 문자열 길이
+    CmdHandler handler;        // 실행할 함수 포인터
+} CommandEntry;
+extern void app_process_command(CommandType in_cmd, char *out_ack, int max_len);
 
 //eception.c
 extern void USART1_IRQHandler();
