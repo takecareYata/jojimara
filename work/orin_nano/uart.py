@@ -30,7 +30,7 @@ class UARTCommunication:
 
     def __init__(
         self,
-        port="/dev/ttyTHS1",
+        port="/dev/ttyACM0",
         baud_rate=115200,
         timeout=0.1,
     ):
