@@ -25,7 +25,7 @@ static const CommandEntry cmd_table[] = {
     { CMD_WARN_CENTER, "WARN_CENTER", 11, action_warn_center },
     { CMD_WARN_RIGHT,  "WARN_RIGHT",  10, action_warn_right },
     { CMD_WARN_LEFT,   "WARN_LEFT",    9, action_warn_left },
-    { CMD_CENTOR_OK,   "CENTOR_OK",    9, led_center_off },
+    { CMD_CENTER_OK,   "CENTER_OK",    9, led_center_off },
     { CMD_RIGHT_OK,    "RIGHT_OK",     8, led_right_off },
     { CMD_LEFT_OK,     "LEFT_OK",      7, led_left_off },
     { CMD_WIN_CLOSE,   "WIN_CLOSE",    9, action_win_close },
@@ -42,7 +42,7 @@ void app_process_command(CommandType in_cmd, char *out_ack, int max_len) {
                 cmd_table[i].handler();
             }
 
-            snprintf(out_ack, max_len, "ACK_%s\r\n", cmd_table[i].cmd_str);
+            snprintf(out_ack, max_len, "%s\r\n", cmd_table[i].cmd_str);
             return;
         }
     }
