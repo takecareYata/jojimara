@@ -45,17 +45,54 @@
 ##  3. Software Architecture & Flow
 
 ```c
-[ Jetson Orin Nano (Dual AI Pipeline) ]
- ├─ Cam 1 (전방 카메라) : 터널 감지 (`WIN_CLOSE`/`OPEN`), 사각지대/옆차선 감지 (`SIDE_WARN`)
- └─ Cam 2 (내부 운전자) : 졸음 안면 인식 (`DROWSY_WARN`/`OK`), 하품 감지 (`VENT_ON`/`OFF`)
-             │
-             │ UART (115200 bps, ASCII + '\n')
-             ▼
-[ STM32F4 Peripheral Controller ]
- ├─ Buzzer (TIM3) / LED ── 졸음 경고 패턴 및 측면 경고음
- ├─ Ventilation Motor   ── 환기 구동
- ├─ Airconditioner Motor── 에어컨 구동
- └─ Window Motor        ── 터널 출입 시 창문 개폐
++-----------------------------------------------------------------------------------+
+|                           Jetson Orin Nano (Host System)                          |
+|                                                                                   |
+|   +------------------------------------+   +----------------------------------+   |
+|   | Cam 1: External Perception         |   | Cam 2: Driver Monitoring (DMS)   |   |
+|   | - Tunnel (WIN_CLOSE / WIN_OPEN)    |   | - Drowsy (DROWSY_WARN / OK)      |   |
+|   | - Proximity (WARN/OK_C, L, R)      |   | - Yawn (VENT_ON)                 |   |
+|   +-----------------+------------------+   +-----------------+----------------+   |
+|                     |                                        |                    |
+|                     +--------------------+-------------------+                    |
+|                                          |                                        |
+|                          [ UART Protocol Generator ]                              |
+|                          - 115200 bps, 8-N-1, '\n' Delimiter                      |
++------------------------------------------+----------------------------------------+
+                                           |
+                                           | UART2 (PA9:TX, PA10:RX)
+                                           v
++-----------------------------------------------------------------------------------+
+|                        STM32F4 Core (Peripheral Controller)                       |
+|                                                                                   |
+|  [ Comm Subsystem ]                                                               |
+|    +----------------------+      +-------------------------------------------+    |
+|    | UART2 RX Interrupt   | ---> | ASCII Packet Parser                       |    |
+|    | (Ring Buffer / Line) |      | (DROWSY_*, VENT_*, WIN_*, WARN/OK_*)      |    |
+|    +----------------------+      +---------------------+---------------------+    |
+|                                                        |                          |
+|  [ Real-Time Control ]                                 v                          |
+|    +-------------------------------------------------------------------------+    |
+|    | Non-Blocking Actuator State Machine                                     |    |
+|    | - Tick Scheduler (TIM3 1ms / Systick)                                   |    |
+|    | - Buzzer Pattern Engine (Continuous Alert / Single Beep)                |    |
+|    | - 10s Non-blocking Countdown Timer (A/C Motor)                          |    |
+|    | - Direction & Speed Controllers (Air Cleaner, Window Servo, LEDs)       |    |
+|    +-----+---------------+--------------------+---------------+--------------+    |
++----------|---------------|--------------------|---------------|-------------------+
+           |               |                    |               |
+           | TIM3_CH3      | GPIO Output        | TIM2 (PWM/IO) | TIM4_CH1 (PWM)
+           | (PB0)         | (PC5, PC6, PC8)    | (PA/PB Pins)  | (PB6)
+           v               v                    v               v
+     +-----------+   +-----------+        +-----------+   +-----------+
+     |  Buzzer   |   | Proximity |        |  DC Motor |   |   Servo   |
+     |           |   |   LEDs    |        |  Drivers  |   |   Motor   |
+     +-----------+   +-----------+        +-----+-----+   +-----+-----+
+     - Drowsy Alert  - Center (PC5)             |               |
+     - Proximity     - Left   (PC6)             |               +- Window Up/Down
+       Beep          - Right  (PC8)             |
+                                                +-- Air Cleaner (PA1, PB8, PB9)
+                                                +-- A/C (PB10, PA6, PA7 - 10s Run)
  ```
 
 ### 1) Non-Blocking Data Reception
@@ -66,4 +103,96 @@
 - `Delay()`를 배제하고 `Tim3` 하드웨어 타이머 인터럽트를 적용
 - 부저 주기 패턴 및 환기 팬 10초 카운트다운 중에도 추가 UART 명령 수신 및 모터 제어가 끊김 없이 병렬 실행
 
+##  4. Class Diagram
 
+```c
++-----------------------------------------------------------------------------------------+
+|                                      <<Program Entry>>                                  |
+|                                            Main                                         |
++-----------------------------------------------------------------------------------------+
+| - cmd_buf[64]: char                                                                     |
+| - ack_cmd_buf[64]: char                                                                 |
+| - Uart_Data_In: volatile int                                                            |
++-----------------------------------------------------------------------------------------+
+| + Sys_Init(baud: int): void                                                             |
+| + Main(): void                                                                          |
++-----------------------------------------------------------------------------------------+
+         |                             |                                 |
+         | uses                        | calls                           | calls
+         v                             v                                 v
++-------------------------------+ +-------------------------------+ +-----------------------+
+|          Protocol             | |          AppProcess           | |        UartComm       |
++-------------------------------+ +-------------------------------+ +-----------------------+
+| - cmd_table[]: CommandMap     | | - cmd_table[]: CommandEntry   | | - s_cmd_ready: bool   |
++-------------------------------+ +-------------------------------+ | - s_cmd_buf[64]: char |
+| + UART_ParseCommand(          | | + app_process_command(        | +-----------------------+
+|     cmd: char*): CommandType  | |     in_cmd, *out_ack, max_len)| | + Uart2_Init(baud)    |
++-------------------------------+ | - action_win_close(): void    | | + UART2_SendChar()    |
+                                  | - action_win_open(): void     | | + UART2_SendString()  |
+                                  | - action_warn_center(): void  | | + UART2_Ack_SendString|
+                                  | - action_warn_right(): void   | | + Uart2_RX_Interrupt_ |
+                                  | - action_warn_left(): void    | |   Enable(en: int)     |
+                                  +-------------------------------+ +-----------------------+
+                                                  |
+                                                  v
+         +----------------------------------------+----------------------------------------+
+         |                                        |                                        |
+         v                                        v                                        v
++--------------------+                   +--------------------+                   +--------------------+
+|      MotorApp      |                   |     BuzzerApp      |                   |       LedApp       |
++--------------------+                   +--------------------+                   +--------------------+
+| - motor_ac:        |                   | - buzzer: Buzzer_t |                   | - target_led:      |
+|   DCMotor_t        |                   | - warning_tick: int|                   |   volatile LED_STAT|
+| - motor_purifier:  |                   | - warning_state:   |                   | - led_count:       |
+|   DCMotor_t        |                   |   volatile int     |                   |   volatile int     |
+| - ac_running_tick: |                   | - is_bz_running_   |                   +--------------------+
+|   volatile int     |                   |   tick: volatile   |                   | + led_init(): void |
+| - is_ac_running:   |                   +--------------------+                   | + led_interrupt(): |
+|   volatile int     |                   | + app_buzzer_init()|                   |   void             |
++--------------------+                   | + app_start_buzzer |                   | + set_led_warning()|
+| + app_motor_init() |                   | + app_stop_buzzer()|                   | + led_center_off() |
+| + app_aircon_start |                   | + app_buzzer_mute()|                   | + led_right_off()  |
+| + app_airpurifier_ |                   | + app_buzzer_      |                   | + led_left_off()   |
+|   start() / stop() |                   |   interrupt(): void|                   +--------------------+
+| + app_motor_1ms_   |                   +--------------------+                             |
+|   ISR(): void      |                             |                                        |
++--------------------+                             | controls                               |
+         |                                         v                                        |
+         | controls                       +--------------------+                            |
+         v                                |      Buzzer_t      |                            |
++--------------------+                    +--------------------+                            |
+|    DCMotor_t       |                    | + htim: TIM_TypeDef|                            |
++--------------------+                    | + channel: uint32_t|                            |
+| + dir_port: GPIO*  |                    | + timer_clock: uint|                            |
+| + pin_in1: uint8_t |                    +--------------------+                            |
+| + pin_in2: uint8_t |                    | + buzzer_time_init |                            |
+| + ccr: uint32_t*   |                    | + buzzer_insert_hz |                            |
++--------------------+                    | + tim_set_compare()|                            |
+| + dcmotor_init()   |                    | + tim_set_auto_    |                            |
+| + dcmotor_start()  |                    |   reload()         |                            |
+| + dcmotor_stop()   |                    +--------------------+                            |
++--------------------+                                                                      |
+         |                                                                                  |
+         +------------------------------------+                                             |
+                                              |                                             |
+                                              v                                             |
++------------------------------+     +------------------------------------------------------+----+
+|      WindowServoMotor        |     |                    ExceptionISR                           |
++------------------------------+     +-----------------------------------------------------------+
+| + window_init(): void        |     | + USART2_IRQHandler(): void  // rx_idx -> cmd_buf         |
+| + window_open(): void        |     | + TIM1_UP_TIM10_IRQHandler(): void                        |
+| + window_close(): void       |     |   - app_motor_1ms_ISR()                                   |
++------------------------------+     |   - app_buzzer_interrupt()                                |
+               |                     |   - led_interrupt()                                       |
+               v                     +-----------------------------------------------------------+
++------------------------------------------------------------------------------------------------+
+|                                    Hardware Layer (STM32F4)                                    |
++------------------------------------------------------------------------------------------------+
+| - USART2 : PA2 (TX), PA3 (RX)          [AF07, 115200bps]                                       |
+| - TIM1   : 1ms System Tick Interrupt   [Update ISR]                                            |
+| - TIM2   : PA1 (CH2-Purifier ENB), PB10 (CH3-AC ENA), PA6/PA7 (AC DIR), PB8/PB9 (Purifier DIR) |
+| - TIM3   : PB0 (CH3-Buzzer PWM)        [AF02, 1MHz base]                                       |
+| - TIM4   : PB6 (CH1-Window Servo PWM)  [AF02, 50Hz, CCR 500~2500]                              |
+| - GPIOC  : PC5 (Right LED), PC6 (Left LED), PC8 (Center LED)                                   |
++------------------------------------------------------------------------------------------------+
+```
