@@ -30,6 +30,56 @@ CLASS_NAMES = {
 }
 
 
+def check_bbox_roi_intersection_opencv(box_coords, roi_pts):
+    """
+    OpenCV를 사용하여 축정렬 바운딩 박스(BBox)와 다각형(ROI) 간의
+    면적/선분 겹침 유무를 검사합니다.
+    """
+    if roi_pts is None:
+        return False
+
+    x1, y1, x2, y2 = box_coords
+
+    # 1. 바운딩 박스 모서리 4개 점 중 하나라도 ROI 내부에 있는지 검사
+    bbox_corners = [(x1, y1), (x2, y1), (x1, y2), (x2, y2)]
+    if any(cv2.pointPolygonTest(roi_pts, pt, False) >= 0 for pt in bbox_corners):
+        return True
+
+    # 2. ROI 모서리 점 중 하나라도 바운딩 박스 내부에 있는지 검사 (ROI보다 차량이 클 때)
+    for pt in roi_pts:
+        rx, ry = pt[0], pt[1]
+        if x1 <= rx <= x2 and y1 <= ry <= y2:
+            return True
+
+    # 3. 바운딩 박스 4개 변과 ROI 4개 변 사이의 선분 교차(Intersection) 검사
+    roi_len = len(roi_pts)
+    bbox_lines = [
+        ((x1, y1), (x2, y1)),  # 상단 변
+        ((x2, y1), (x2, y2)),  # 우측 변
+        ((x2, y2), (x1, y2)),  # 하단 변
+        ((x1, y2), (x1, y1)),  # 좌측 변
+    ]
+
+    def is_line_intersect(p1, p2, p3, p4):
+        """두 선분 p1-p2와 p3-p4가 교차하는지 CCW 알고리즘으로 검사"""
+
+        def ccw(A, B, C):
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+
+        return (ccw(p1, p3, p4) != ccw(p2, p3, p4)) and (
+            ccw(p1, p2, p3) != ccw(p1, p2, p4)
+        )
+
+    for b_p1, b_p2 in bbox_lines:
+        for i in range(roi_len):
+            r_p1 = tuple(roi_pts[i])
+            r_p2 = tuple(roi_pts[(i + 1) % roi_len])
+            if is_line_intersect(b_p1, b_p2, r_p1, r_p2):
+                return True
+
+    return False
+
+
 class LaneDetector:
     """고정 비율 좌표 배열을 사용하여 고정 ROI(중앙, 좌, 우) 영역 계산"""
     def __init__(self):
@@ -190,11 +240,12 @@ class Cam1Thread(threading.Thread):
                             }
 
                         elif cls_id == CLASS_VEHICLE:
-                            vehicle_bottom_center = (int((x1 + x2) / 2), y2)
+                            box_coords = (x1, y1, x2, y2)
 
-                            in_center = cv2.pointPolygonTest(center_roi, vehicle_bottom_center, False) >= 0
-                            in_left = cv2.pointPolygonTest(left_roi, vehicle_bottom_center, False) >= 0 if left_roi is not None else False
-                            in_right = cv2.pointPolygonTest(right_roi, vehicle_bottom_center, False) >= 0 if right_roi is not None else False
+                            # 바운딩 박스 면적의 일부라도 ROI 영역과 겹치면 감지 (OpenCV 방식)
+                            in_center = check_bbox_roi_intersection_opencv(box_coords, center_roi)
+                            in_left = check_bbox_roi_intersection_opencv(box_coords, left_roi)
+                            in_right = check_bbox_roi_intersection_opencv(box_coords, right_roi)
 
                             if in_center or in_left or in_right:
                                 effective_id = track_id if track_id != -1 else f"temp_{x1}_{y1}"
