@@ -8,12 +8,12 @@ from ultralytics import YOLO
 DEFAULT_ROI_RATIOS = np.array([
     [0.40, 0.85],  # Top-Left
     [0.60, 0.85],  # Top-Right
-    [0.65, 0.95],  # Bottom-Right
-    [0.35, 0.95]   # Bottom-Left
+    [0.63, 0.95],  # Bottom-Right
+    [0.37, 0.95]   # Bottom-Left
 ], dtype=np.float32)
 
 # 양옆 평행사변형 너비 조절 비율
-SIDE_ROI_OFFSET_RATIO = 0.90
+SIDE_ROI_OFFSET_RATIO = 0.60
 
 CLASS_VEHICLE = 0
 CLASS_TUNNEL_ENTRANCE = 1
@@ -29,10 +29,11 @@ CLASS_NAMES = {
     CLASS_TUNNEL_EXIT: "Tunnel Exit"
 }
 
+
 def check_bbox_roi_intersection_opencv(box_coords, roi_pts):
     """
     OpenCV를 사용하여 축정렬 바운딩 박스(BBox)와 다각형(ROI) 간의
-    면적/선분 겹침 유무를 정확하게 검사합니다.
+    면적/선분 겹침 유무를 검사합니다. (양옆 ROI 전용)
     """
     if roi_pts is None:
         return False
@@ -44,7 +45,7 @@ def check_bbox_roi_intersection_opencv(box_coords, roi_pts):
     if any(cv2.pointPolygonTest(roi_pts, pt, False) >= 0 for pt in bbox_corners):
         return True
 
-    # 2. ROI 모서리 점 중 하나라도 바운딩 박스 내부에 있는지 검사 (ROI보다 차량이 클 때)
+    # 2. ROI 모서리 점 중 하나라도 바운딩 박스 내부에 있는지 검사
     for pt in roi_pts:
         rx, ry = pt[0], pt[1]
         if x1 <= rx <= x2 and y1 <= ry <= y2:
@@ -60,8 +61,6 @@ def check_bbox_roi_intersection_opencv(box_coords, roi_pts):
     ]
 
     def is_line_intersect(p1, p2, p3, p4):
-        """두 선분 p1-p2와 p3-p4가 교차하는지 CCW 알고리즘으로 검사"""
-
         def ccw(A, B, C):
             return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
 
@@ -77,7 +76,6 @@ def check_bbox_roi_intersection_opencv(box_coords, roi_pts):
                 return True
 
     return False
-
 
 
 class LaneDetector:
@@ -286,8 +284,16 @@ class VideoProcessingThread(threading.Thread):
                         elif cls_id == CLASS_VEHICLE:
                             box_coords = (x1, y1, x2, y2)
 
-                            # 바운딩 박스 면적의 일부라도 ROI 영역과 겹치면 감지 (OpenCV 방식)
-                            in_center = check_bbox_roi_intersection_opencv(box_coords, center_roi)
+                            # 1. 가운데 ROI: 하단 중앙점 OR 아래에서 1/4 지점 검사
+                            vehicle_bottom_center = (int((x1 + x2) / 2), y2)
+                            vehicle_quarter_center = (int((x1 + x2) / 2), int(y1 + (y2 - y1) * 0.75))
+
+                            in_center_bottom = cv2.pointPolygonTest(center_roi, vehicle_bottom_center, False) >= 0
+                            in_center_quarter = cv2.pointPolygonTest(center_roi, vehicle_quarter_center, False) >= 0
+
+                            in_center = in_center_bottom or in_center_quarter
+
+                            # 2. 양옆 ROI: 영역 일부 겹침(Intersection) 검사
                             in_left = check_bbox_roi_intersection_opencv(box_coords, left_roi)
                             in_right = check_bbox_roi_intersection_opencv(box_coords, right_roi)
 
@@ -301,7 +307,7 @@ class VideoProcessingThread(threading.Thread):
                                     "last_conf": conf,
                                     "in_center": in_center,
                                     "in_left": in_left,
-                                    "in_right": in_right
+                                    "in_right": in_right,
                                 }
 
             # [1] 터널 상태 업데이트 및 시각화
