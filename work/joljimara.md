@@ -41,6 +41,7 @@ work/
     │   ├── uart.py
     │   ├── cam0.py
     │   ├── cam1.py
+    │   ├── video.py
     │   ├── gui.py
     │   └── main.py
     └── stm32/
