@@ -16,6 +16,9 @@ static void action_win_open() {
 static void action_warn_center() { set_led_warning(CENTER); }
 static void action_warn_right()  { set_led_warning(RIGHT); }
 static void action_warn_left()   { set_led_warning(LEFT); }
+static void action_center_ok()   { led_off(CENTER,8);}
+static void action_right_ok()   { led_off(RIGHT,5);}
+static void action_left_ok()   { led_off(LEFT,6);}
 
 // 테이블 정의: 여기에 한 줄씩만 추가/수정하면 모든 로직이 자동 연동됨
 static const CommandEntry cmd_table[] = {
@@ -25,9 +28,9 @@ static const CommandEntry cmd_table[] = {
     { CMD_WARN_CENTER, "WARN_CENTER", 11, action_warn_center },
     { CMD_WARN_RIGHT,  "WARN_RIGHT",  10, action_warn_right },
     { CMD_WARN_LEFT,   "WARN_LEFT",    9, action_warn_left },
-    { CMD_CENTER_OK,   "CENTER_OK",    9, led_center_off },
-    { CMD_RIGHT_OK,    "RIGHT_OK",     8, led_right_off },
-    { CMD_LEFT_OK,     "LEFT_OK",      7, led_left_off },
+    { CMD_CENTER_OK,   "CENTER_OK",    9, action_center_ok },
+    { CMD_RIGHT_OK,    "RIGHT_OK",     8, action_right_ok },
+    { CMD_LEFT_OK,     "LEFT_OK",      7, action_left_ok },
     { CMD_WIN_CLOSE,   "WIN_CLOSE",    9, action_win_close },
     { CMD_WIN_OPEN,    "WIN_OPEN",     8, action_win_open },
 };

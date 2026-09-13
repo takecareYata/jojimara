@@ -103,11 +103,9 @@ typedef enum {
    LEFT = (1 << 2),
    NONE = 0
 } LED_STATE;
-
+extern void total_led_init();
 extern void led_init();
-extern void led_center_off();
-extern void led_right_off();
-extern void led_left_off();
+extern void led_off();
 extern void led_interrupt();
 extern void set_led_warning(LED_STATE led_state);
 

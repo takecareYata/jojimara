@@ -5,38 +5,26 @@
 #define LED_CENTER_PIN           8
 #define LED_TOGGLE_MS  250
 
-void led_init(){
-    Macro_Set_Bit(RCC->AHB1ENR, 2);
-    
-    Macro_Write_Block(GPIOC->MODER, 0x3, 1, LED_RIGHT_PIN * 2);
-    Macro_Write_Block(GPIOC->MODER, 0x3, 1, LED_LEFT_PIN * 2);
-    Macro_Write_Block(GPIOC->MODER, 0x3, 1, LED_CENTER_PIN * 2);
-
-    Macro_Clear_Bit(GPIOC->OTYPER, LED_RIGHT_PIN);
-    Macro_Clear_Bit(GPIOC->OTYPER, LED_LEFT_PIN);
-    Macro_Clear_Bit(GPIOC->OTYPER, LED_CENTER_PIN);
-
-    Macro_Clear_Bit(GPIOC->ODR, LED_RIGHT_PIN);
-    Macro_Clear_Bit(GPIOC->ODR, LED_LEFT_PIN);
-    Macro_Clear_Bit(GPIOC->ODR, LED_CENTER_PIN);
-}
-
 volatile LED_STATE target_led = NONE;
 static volatile int led_count = 0;
 
-void led_center_off(){
-    target_led &= ~CENTER;
-    Macro_Clear_Bit(GPIOC->ODR, LED_CENTER_PIN);
+void total_led_init(){
+    Macro_Set_Bit(RCC->AHB1ENR, 2);
+    
+    led_init(LED_RIGHT_PIN);
+    led_init(LED_LEFT_PIN);
+    led_init(LED_CENTER_PIN);
 }
 
-void led_right_off(){
-    target_led &= ~RIGHT;
-    Macro_Clear_Bit(GPIOC->ODR, LED_RIGHT_PIN);
+void led_init(int pin_num){
+    Macro_Write_Block(GPIOC->MODER, 0x3, 1, pin_num * 2);
+    Macro_Clear_Bit(GPIOC->OTYPER, pin_num);
+    Macro_Clear_Bit(GPIOC->ODR, pin_num);
 }
 
-void led_left_off(){
-    target_led &= ~LEFT;
-    Macro_Clear_Bit(GPIOC->ODR, LED_LEFT_PIN);
+void led_off(int dir, int pin_num){
+    target_led &= ~dir;
+    Macro_Clear_Bit(GPIOC->ODR, pin_num);
 }
 
 void set_led_warning(LED_STATE led_state){
