@@ -12,8 +12,6 @@ static volatile int is_ac_running = 0;
 //핀이랑 타이머, 채널이 변경된 경우 이 함수를 바꾸면 됨
 void app_motor_init(){
     motor_hw_init();
-
-    
     dcmotor_init(&motor_ac, GPIOA, 6, 7, &(TIM2->CCR3));
     dcmotor_init(&motor_purifier, GPIOB, 8, 9, &(TIM2->CCR2));
 }
